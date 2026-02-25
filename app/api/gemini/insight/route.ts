@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { GEMINI_CONFIG, getGeminiApiKey } from "@/lib/gemini-config"
-import { GoogleGenerativeAI } from "@google/generative-ai"
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,17 +7,41 @@ export async function POST(request: NextRequest) {
     const { context, question } = body
 
     const apiKey = getGeminiApiKey()
-    const genAI = new GoogleGenerativeAI(apiKey, { apiVersion: "v1" })
-    const model = genAI.getGenerativeModel({ model: GEMINI_CONFIG.model, generationConfig: GEMINI_CONFIG.generationConfig })
 
     const prompt = `Contexto del usuario: ${JSON.stringify(context, null, 2)}\n\nPregunta: ${question}\n\nProporciona un insight breve y accionable basado en los datos del usuario.`
 
-    const result = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
-    const text = result.response.text()
+    // Usar REST API directa con v1 (no GoogleGenerativeAI que usa v1beta)
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/${GEMINI_CONFIG.model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: GEMINI_CONFIG.generationConfig,
+        }),
+      }
+    )
 
-    return NextResponse.json({ success: true, insight: text, confidence: 85, timestamp: new Date().toISOString() })
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text()
+      console.error("Error Gemini API insight:", errorText)
+      throw new Error(`Gemini API error: ${geminiResponse.status}`)
+    }
+
+    const geminiData = await geminiResponse.json()
+    const insightText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo generar insight"
+
+    return NextResponse.json({ 
+      success: true, 
+      insight: insightText, 
+      confidence: 85, 
+      timestamp: new Date().toISOString() 
+    })
   } catch (error) {
     console.error("Error en insight Gemini:", error)
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Error desconocido" }, { status: 500 })
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : "Error desconocido" 
+    }, { status: 500 })
   }
 }

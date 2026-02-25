@@ -1,4 +1,5 @@
 "use client"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GeminiDemo } from "@/components/gemini-demo"
@@ -6,10 +7,25 @@ import { PatternAnalysis } from "@/components/pattern-analysis"
 import { Recommendations } from "@/components/recommendations"
 import { ScheduleOptimizer } from "@/components/schedule-optimizer"
 import { InsightsHistory } from "@/components/insights-history"
-import { Brain, Sparkles, History } from "lucide-react"
+import { SimpleEvaluation } from "@/components/simple-evaluation"
+import { Brain, Sparkles, History, Target } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 
 export default function GeminiLabPage() {
+  const [lastResponse, setLastResponse] = useState<{
+    text: string
+    type: string
+    timestamp: string
+  } | undefined>()
+
+  const handleResponseGenerated = (type: 'patterns' | 'recommendations' | 'schedule', response: string) => {
+    setLastResponse({
+      text: response,
+      type: type,
+      timestamp: new Date().toISOString()
+    })
+  }
+
   return (
     <AppLayout>
       <div className="min-h-screen bg-background pt-20 pb-20 md:pt-8 md:pb-8">
@@ -50,10 +66,13 @@ export default function GeminiLabPage() {
               <GeminiDemo />
 
               <div className="grid gap-4 md:gap-6 md:grid-cols-1">
-                <PatternAnalysis />
-                <Recommendations />
-                <ScheduleOptimizer />
+                <PatternAnalysis onResponseGenerated={(response) => handleResponseGenerated('patterns', response)} />
+                <Recommendations onResponseGenerated={(response) => handleResponseGenerated('recommendations', response)} />
+                <ScheduleOptimizer onResponseGenerated={(response) => handleResponseGenerated('schedule', response)} />
               </div>
+
+              {/* Evaluación siempre visible */}
+              <SimpleEvaluation lastResponse={lastResponse} />
             </TabsContent>
 
             <TabsContent value="history">

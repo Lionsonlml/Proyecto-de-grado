@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { verifyToken, getUserTasks, getUserMoods } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth"
+import { getGeminiUserTasks, getGeminiUserMoods } from "@/lib/secure-data"
 import { GEMINI_CONFIG, getGeminiApiKey } from "@/lib/gemini-config"
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value
+    const token = request.cookies.get("auth-token")?.value
     if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
     const user = await verifyToken(token)
@@ -15,8 +16,8 @@ export async function POST(request: NextRequest) {
 
     // Obtener TODAS las tareas del usuario (no filtrar por fecha) y todos los moods
     const [allTasks, allMoods] = await Promise.all([
-      getUserTasks(user.id), // Sin filtro de fecha para obtener todas
-      getUserMoods(user.id),  // Sin filtro de fecha
+      getGeminiUserTasks(user.id, user.id, undefined, request), // Sin filtro de fecha para obtener todas
+      getGeminiUserMoods(user.id, user.id, undefined, request),  // Sin filtro de fecha
     ])
 
     console.log(`📊 Optimización - Tareas totales: ${allTasks.length}, Moods: ${allMoods.length}`)
@@ -64,7 +65,7 @@ Responde SOLO con este JSON exacto (sin markdown):
 }`
 
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/${GEMINI_CONFIG.model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

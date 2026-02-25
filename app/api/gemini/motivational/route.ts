@@ -1,20 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GEMINI_CONFIG, getGeminiApiKey } from '@/lib/gemini-config'
 
 export async function POST(request: NextRequest) {
+  // Obtener modelo al inicio para usarlo en error handling
+  const modelName = GEMINI_CONFIG?.model || 'gemini-1.5-flash'
+  
   try {
-    const apiKey = process.env.GEMINI_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: "API key no configurada" }, { status: 500 })
-    }
+    const apiKey = getGeminiApiKey()
 
     const body = await request.json()
     const { recentMoods, energy, focus, stress, moodType } = body
-
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash-exp",
-    })
 
     // Analizar el último estado registrado del usuario
     const currentEnergy = energy || 3
@@ -74,9 +69,27 @@ La frase debe ser:
 
 Genera UNA sola frase motivacional.`
 
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const motivationalQuote = response.text().trim()
+    // Usar REST API directa con v1 (no GoogleGenerativeAI que usa v1beta)
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: GEMINI_CONFIG.generationConfig,
+        }),
+      }
+    )
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text()
+      console.error("Error Gemini API motivational:", errorText)
+      throw new Error(`Gemini API error: ${geminiResponse.status}`)
+    }
+
+    const geminiData = await geminiResponse.json()
+    const motivationalQuote = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "¡Tú puedes lograrlo!"
 
     return NextResponse.json({ 
       success: true, 
@@ -84,10 +97,28 @@ Genera UNA sola frase motivacional.`
       context: moodContext
     })
   } catch (error: any) {
-    console.error("Error generando frase motivacional:", error)
+    const rawMsg = error?.message || String(error)
+    const redactedMsg = rawMsg.replace(/AIza[0-9A-Za-z-_]+/g, '[REDACTED_API_KEY]')
+    console.error('Error generando frase motivacional:', redactedMsg)
+
+    if (rawMsg.includes('Permission denied') || rawMsg.includes('CONSUMER_SUSPENDED') || error?.status === 403) {
+      return NextResponse.json(
+        { error: 'Clave de Gemini inválida o suspendida. Revisa la variable de entorno GEMINI_API_KEY.' },
+        { status: 503 }
+      )
+    }
+
+    if (rawMsg.includes('not found') || rawMsg.includes('is not found')) {
+      return NextResponse.json(
+        { error: `Modelo no disponible (${modelName}). Revisa GEMINI_CONFIG.model o la versión de la API.` },
+        { status: 502 }
+      )
+    }
+
     return NextResponse.json(
-      { error: "Error al generar frase motivacional", details: error.message },
+      { error: 'Error al generar frase motivacional', details: redactedMsg },
       { status: 500 }
     )
   }
 }
+

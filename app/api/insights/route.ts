@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { verifyToken, getUserInsights } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth"
+import { getSecureUserInsights } from "@/lib/secure-data"
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value
+    const token = request.cookies.get("auth-token")?.value
     if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
     const user = await verifyToken(token)
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = Number.parseInt(searchParams.get("limit") || "20")
 
-    const insights = await getUserInsights(user.id, limit)
+    const insights = await getSecureUserInsights(user.id, user.id, limit, request)
 
     return NextResponse.json({ success: true, insights })
   } catch (error) {

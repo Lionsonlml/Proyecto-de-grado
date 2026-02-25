@@ -5,7 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Lightbulb, Loader2 } from "lucide-react"
 
-export function Recommendations() {
+interface RecommendationsProps {
+  onResponseGenerated?: (response: string) => void
+}
+
+export function Recommendations({ onResponseGenerated }: RecommendationsProps) {
   const [loading, setLoading] = useState(false)
   const [recommendations, setRecommendations] = useState<any>(null)
 
@@ -25,7 +29,13 @@ export function Recommendations() {
       const data = await response.json()
       console.log("Recommendations data:", data)
       
-      setRecommendations(data.parsed || { text: data.response || "Sin respuesta del modelo" })
+      const recommendationsResult = data.parsed || { text: data.response || "Sin respuesta del modelo" }
+      setRecommendations(recommendationsResult)
+      
+      // Pasar la respuesta al componente padre
+      if (onResponseGenerated) {
+        onResponseGenerated(data.response || recommendationsResult.text || "")
+      }
     } catch (error) {
       console.error(error)
       setRecommendations({ error: "Error al obtener recomendaciones" })

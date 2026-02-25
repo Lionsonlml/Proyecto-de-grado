@@ -115,14 +115,28 @@ export async function getUserMoods(userId: number, date?: string) {
     })
   }
   
-  return result.rows
+  // Descifrar notas sensibles
+  const { decryptMoodNotes } = await import('./encryption')
+  
+  return result.rows.map(row => ({
+    ...row,
+    notes: row.notes ? decryptMoodNotes(row.notes) : null,
+  }))
 }
 
 export async function saveAIInsight(userId: number, prompt: string, response: string, analysisType: string, metadata?: string) {
   const db = getDb()
+  
+  // Cifrar metadatos sensibles si existen
+  let encryptedMetadata = null
+  if (metadata) {
+    const { encryptInsightMetadata } = await import('./encryption')
+    encryptedMetadata = encryptInsightMetadata(metadata)
+  }
+  
   await db.execute({
     sql: "INSERT INTO ai_insights (user_id, prompt, response, analysis_type, metadata) VALUES (?, ?, ?, ?, ?)",
-    args: [userId, prompt, response, analysisType, metadata || null],
+    args: [userId, prompt, response, analysisType, encryptedMetadata],
   })
 }
 
@@ -133,7 +147,47 @@ export async function getUserInsights(userId: number, limit = 20) {
     args: [userId, limit],
   })
   
-  return result.rows
+  // Descifrar metadatos sensibles
+  const { decryptInsightMetadata } = await import('./encryption')
+  
+  return result.rows.map(row => ({
+    ...row,
+    metadata: row.metadata ? decryptInsightMetadata(row.metadata) : null,
+  }))
+}
+
+// Función para guardar mood con cifrado de notas
+export async function saveMood(userId: number, moodData: {
+  energy: number
+  focus: number
+  stress: number
+  type: string
+  hour: number
+  date: string
+  notes?: string
+}) {
+  const db = getDb()
+  
+  // Cifrar notas sensibles si existen
+  let encryptedNotes = null
+  if (moodData.notes) {
+    const { encryptMoodNotes } = await import('./encryption')
+    encryptedNotes = encryptMoodNotes(moodData.notes)
+  }
+  
+  await db.execute({
+    sql: "INSERT INTO moods (user_id, energy, focus, stress, type, hour, date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    args: [
+      userId, 
+      moodData.energy, 
+      moodData.focus, 
+      moodData.stress, 
+      moodData.type, 
+      moodData.hour, 
+      moodData.date, 
+      encryptedNotes
+    ],
+  })
 }
 
 // Mantener compatibilidad

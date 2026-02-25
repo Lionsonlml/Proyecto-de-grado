@@ -1,0 +1,376 @@
+[
+  {
+    "table": "tasks",
+    "id": 1,
+    "field": "title",
+    "rawPreview": "50aceb530a320c1fe85366153b67006f:d2252f82c34f487a1373d509e872fe87",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Revisar emails"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 1,
+    "field": "description",
+    "rawPreview": "e2e2b6413b7995f2d088fb498f94e331:f3a268f7ae180a884f5c2b036e119c284f3609ebcdc2b27975c0752215018801",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Responder correos importantes"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 2,
+    "field": "title",
+    "rawPreview": "ddbbf8256014875af88f118680ac5aa0:a1bb8d557e577fd572d1863d548be50c7aca183c1046b3aebe3847ac81be0c28",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Reunión de equipo"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 2,
+    "field": "description",
+    "rawPreview": "33b14573d7292f08dfd23f4407ff5aca:abdaeac4bd9b9267859fcaedb148dd96",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Daily standup"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 3,
+    "field": "title",
+    "rawPreview": "a9d14f94eca23350b4f304bda8323c7f:6c5285e308cb711945771edad28159e5fcb2d61644137f33ee2f2de20a8ce6eb",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Desarrollo feature principal"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 3,
+    "field": "description",
+    "rawPreview": "573509322359599fa03f49f5094208a6:3da8651190e3f17c2200478772e9c5455fa55d5c768393fccba73bfde6005601",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Implementar nueva funcionalidad"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 4,
+    "field": "title",
+    "rawPreview": "85eb99808ea9993117299f491fc2bb61:47f5636a6854ec4d12717e412aa10f1601d70ba1a300d7edf1159fcf09591579",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Planificación sprint"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 4,
+    "field": "description",
+    "rawPreview": "5007202b8c1791510f34daa9624e9b78:ed4e50f67a921edf8cfff829e6c3d08a8855b7f352327a861308b6f7ec8fe0c9",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Planear siguiente sprint"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 5,
+    "field": "title",
+    "rawPreview": "f235255f776b059f391fec8bb802a5fd:d3c84eed2e4a4963c7b320875b254ba7844eab9fee415d78c5afed4e5d1a3eb2",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Ejercicio matutino"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 5,
+    "field": "description",
+    "rawPreview": "0e7a0c10aa0371d4c2d28fa3cf094126:be8f52c1dd1658dbeab82df75c95c097bf75fc3b90994415f1dddcf8ed1a858d",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Correr 30 minutos"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 6,
+    "field": "title",
+    "rawPreview": "d2262d567e6642f5611fc1d87d3e09e5:96108fc15e0f80b09ce2564b484c9157",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Estudiar React"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 6,
+    "field": "description",
+    "rawPreview": "11c46744e62e567e747280f58a9fd9a3:8d44bb594cd671022b2584c375b71e8e4ab0531446b21e414f085ae8e13949d2",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Repasar hooks y componentes"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 7,
+    "field": "title",
+    "rawPreview": "d08271b2aef3f14c02c53cd58e075ffa:2aa8cc5e45da1f79200319a7d166f40f7acefe5648f3a0fbc5a90d69a4948be4",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Proyecto personal"
+    }
+  },
+  {
+    "table": "tasks",
+    "id": 7,
+    "field": "description",
+    "rawPreview": "65e759921f89761f9240204520343e77:dd3573f5bdd932340680abe9c3c6d3dabbea758c423b915fb83d42cc41ce8181",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Desarrollar portafolio web"
+    }
+  },
+  {
+    "table": "moods",
+    "id": 1,
+    "field": "notes",
+    "rawPreview": "387e70e961cc2f971337393db8a1d1c2:0f7a68efbf1d57bc792f36761f8f4e41951b80f1ffd7fd0dd3642e7248f921f49fbb305e0d606d04622ce02",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Muy buena mañana, me siento productiva"
+    }
+  },
+  {
+    "table": "moods",
+    "id": 2,
+    "field": "notes",
+    "rawPreview": "7225ca4daa053ea2c07dc422a08ed123:44acfaa8a49223ae62f48a59ce36abea99c83d364d49289aa706c3d1852b3cd889c43440e3824a1a7ca6228",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Máxima concentración en el trabajo"
+    }
+  },
+  {
+    "table": "moods",
+    "id": 3,
+    "field": "notes",
+    "rawPreview": "b41b1915227529622ba76fcbeec46cb7:f583a9c239fbd3266bed7f4b81985d2c6efeed75fd346ab5f16550602be11db6dfee4119cb2a342fecbd03f",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Listo para el día, con muchas ganas"
+    }
+  },
+  {
+    "table": "moods",
+    "id": 4,
+    "field": "notes",
+    "rawPreview": "5a70685bc90edc13dff0b6c0dbfbca81:f2421561a62de4e1fc5b58b3da8b78889ef246e0cfbd8f7c8921e02d26c3c680f760c1b03f3100a886a55c2",
+    "isEncryptedFormat": true,
+    "decryptWithCurrentKey": {
+      "ok": true,
+      "text": "Día normal, estudiando programación"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 1,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Analiza estos datos y responde en JSON:\n\nTAREAS:\n- 50aceb530a320c1fe85366153b67006f:",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 1,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"patterns\": [\n    \"Alta tasa de finalización de tareas en la franja horaria de 8:00 a 10:00 AM.\",\n    \"La ún",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 2,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Analiza estos datos y responde en JSON:\n\nTAREAS:\n- 50aceb530a320c1fe85366153b67006f:",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 2,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"patterns\": [\n    \"Existe una alta tasa de finalización de tareas a partir de las 8 AM.\",\n    \"Las tareas pr",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 3,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Analiza estos datos y responde en JSON:\n\nTAREAS:\n- Revisar emails (30min, hora: 8, c",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 3,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"patterns\": [\n    \"Alta productividad y cumplimiento de tareas laborales importantes durante las horas de la",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 4,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Analiza estos datos y responde en JSON:\n\nTAREAS:\n- Revisar emails (30min, hora: 8, c",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 4,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"patterns\": [\n    \"Alta tasa de finalización de tareas en la mañana (8 AM - 10 AM), incluyendo actividades c",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 5,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Basándote en:\n\nTAREAS:\n- Revisar emails (30min, hora: 8, completada: sí)\n- Reunión d",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 5,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"recommendations\": [\n    \"Prioriza tu Ejercicio Matutino: Observamos que el 'Ejercicio matutino' no fue comp",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 6,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Analiza estos datos y responde en JSON:\n\nTAREAS:\n- Revisar emails (30min, hora: 8, c",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 6,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"patterns\": [\n    \"Alta tasa de finalización de tareas laborales clave en la mañana (8:00-10:00 AM).\",\n    \"",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 7,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Analiza estos datos y responde en JSON:\n\nTAREAS:\n- Revisar emails (30min, hora: 8, c",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 7,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"patterns\": [\n    \"Alta productividad y finalización de tareas laborales clave durante la mañana (8:00-11:00",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 8,
+    "field": "prompt",
+    "rawPreview": "Eres un asistente de productividad. Analiza estos datos y responde en JSON:\n\nTAREAS:\n- Revisar emails (30min, hora: 8, c",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  },
+  {
+    "table": "ai_insights",
+    "id": 8,
+    "field": "response",
+    "rawPreview": "```json\n{\n  \"patterns\": [\n    \"Alta tasa de finalización de tareas de trabajo programadas en la mañana (8:00-11:00).\",\n ",
+    "isEncryptedFormat": false,
+    "decryptWithCurrentKey": {
+      "ok": false,
+      "reason": "not_encrypted_format"
+    }
+  }
+]

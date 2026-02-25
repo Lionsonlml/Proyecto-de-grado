@@ -5,7 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { TrendingUp, Loader2 } from "lucide-react"
 
-export function PatternAnalysis() {
+interface PatternAnalysisProps {
+  onResponseGenerated?: (response: string) => void
+}
+
+export function PatternAnalysis({ onResponseGenerated }: PatternAnalysisProps) {
   const [loading, setLoading] = useState(false)
   const [analysis, setAnalysis] = useState<any>(null)
 
@@ -25,7 +29,13 @@ export function PatternAnalysis() {
       const data = await response.json()
       console.log("Pattern analysis data:", data)
       
-      setAnalysis(data.parsed || { text: data.response || "Sin respuesta del modelo" })
+      const analysisResult = data.parsed || { text: data.response || "Sin respuesta del modelo" }
+      setAnalysis(analysisResult)
+      
+      // Pasar la respuesta al componente padre
+      if (onResponseGenerated) {
+        onResponseGenerated(data.response || analysisResult.text || "")
+      }
     } catch (error) {
       console.error(error)
       setAnalysis({ error: "Error al obtener análisis" })

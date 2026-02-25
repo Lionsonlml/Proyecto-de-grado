@@ -5,7 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Calendar, Loader2 } from "lucide-react"
 
-export function ScheduleOptimizer() {
+interface ScheduleOptimizerProps {
+  onResponseGenerated?: (response: string) => void
+}
+
+export function ScheduleOptimizer({ onResponseGenerated }: ScheduleOptimizerProps) {
   const [loading, setLoading] = useState(false)
   const [schedule, setSchedule] = useState<any>(null)
 
@@ -25,7 +29,13 @@ export function ScheduleOptimizer() {
       const data = await response.json()
       console.log("Schedule data:", data)
       
-      setSchedule(data.parsed || { text: data.response || "Sin respuesta del modelo" })
+      const scheduleResult = data.parsed || { text: data.response || "Sin respuesta del modelo" }
+      setSchedule(scheduleResult)
+      
+      // Pasar la respuesta al componente padre
+      if (onResponseGenerated) {
+        onResponseGenerated(data.response || scheduleResult.text || "")
+      }
     } catch (error) {
       console.error(error)
       setSchedule({ error: "Error al optimizar horario" })

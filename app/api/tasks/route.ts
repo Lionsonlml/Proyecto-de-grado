@@ -1,23 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { verifyToken } from "@/lib/auth"
-import { getDb } from "@/lib/db"
+import { getSecureUserTasks, saveSecureTask, updateSecureTask, deleteSecureTask } from "@/lib/secure-data"
 
 // GET - Obtener todas las tareas del usuario
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value
+    const token = request.cookies.get("auth-token")?.value
     if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
     const user = await verifyToken(token)
     if (!user) return NextResponse.json({ error: "Token inválido" }, { status: 401 })
 
-    const db = getDb()
-    const result = await db.execute({
-      sql: "SELECT * FROM tasks WHERE user_id = ? ORDER BY date DESC, hour ASC",
-      args: [user.id],
-    })
+    // Usar función segura que incluye cifrado/descifrado automático
+    const tasks = await getSecureUserTasks(user.id, user.id, undefined, request)
 
-    return NextResponse.json({ success: true, tasks: result.rows })
+    return NextResponse.json({ success: true, tasks })
   } catch (error) {
     console.error("Error obteniendo tareas:", error)
     return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })
@@ -27,7 +24,7 @@ export async function GET(request: NextRequest) {
 // POST - Crear nueva tarea
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value
+    const token = request.cookies.get("auth-token")?.value
     if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
     const user = await verifyToken(token)
@@ -51,8 +48,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "El título es requerido" }, { status: 400 })
     }
 
-    const db = getDb()
-    
     // Validaciones
     const validCategories = ['trabajo', 'personal', 'estudio', 'salud', 'otro']
     const validPriorities = ['baja', 'media', 'alta', 'urgente']
@@ -66,30 +61,24 @@ export async function POST(request: NextRequest) {
     const completed = finalStatus === 'completada' ? 1 : 0
     const tagsString = Array.isArray(tags) ? tags.join(',') : (tags || null)
 
-    const result = await db.execute({
-      sql: `INSERT INTO tasks (
-        user_id, title, description, category, priority, status, 
-        duration, completed, hour, date, due_date, tags
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-      args: [
-        user.id,
-        title,
-        description || null,
-        finalCategory,
-        finalPriority,
-        finalStatus,
-        duration,
-        completed,
-        finalHour,
-        finalDate,
-        due_date || null,
-        tagsString,
-      ],
-    })
+    // Usar función segura que incluye cifrado automático
+    await saveSecureTask(user.id, {
+      title,
+      description: description || null,
+      category: finalCategory,
+      priority: finalPriority,
+      status: finalStatus,
+      duration,
+      completed,
+      hour: finalHour,
+      date: finalDate,
+      due_date: due_date || null,
+      tags: tagsString,
+    }, request)
 
-    console.log("✅ Tarea creada:", result.rows[0])
+    console.log("✅ Tarea creada con cifrado")
 
-    return NextResponse.json({ success: true, task: result.rows[0] })
+    return NextResponse.json({ success: true, message: "Tarea creada exitosamente" })
   } catch (error) {
     console.error("Error creando tarea:", error)
     return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })
@@ -99,7 +88,7 @@ export async function POST(request: NextRequest) {
 // PUT - Actualizar tarea
 export async function PUT(request: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value
+    const token = request.cookies.get("auth-token")?.value
     if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
     const user = await verifyToken(token)
@@ -125,66 +114,24 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "ID es requerido" }, { status: 400 })
     }
 
-    const db = getDb()
-    
-    // Construir query dinámicamente
-    const updates: string[] = []
-    const args: any[] = []
-    
-    if (title !== undefined) { updates.push("title = ?"); args.push(title) }
-    if (description !== undefined) { updates.push("description = ?"); args.push(description) }
-    if (category !== undefined) { updates.push("category = ?"); args.push(category) }
-    if (priority !== undefined) { updates.push("priority = ?"); args.push(priority) }
-    if (status !== undefined) {
-      updates.push("status = ?")
-      args.push(status)
-      // Actualizar completed basado en status
-      const isCompleted = status === 'completada' ? 1 : 0
-      updates.push("completed = ?")
-      args.push(isCompleted)
-      
-      // Si cambia a en-progreso, registrar started_at
-      if (status === 'en-progreso') {
-        updates.push("started_at = CURRENT_TIMESTAMP")
-      }
-      
-      // Si se completa, registrar completed_at
-      if (status === 'completada') {
-        updates.push("completed_at = CURRENT_TIMESTAMP")
-      }
-    } else if (completed !== undefined) {
-      updates.push("completed = ?")
-      args.push(completed ? 1 : 0)
-    }
-    if (duration !== undefined) { updates.push("duration = ?"); args.push(duration) }
-    if (hour !== undefined) { updates.push("hour = ?"); args.push(Math.max(0, Math.min(23, Number(hour)))) }
-    if (date !== undefined) { updates.push("date = ?"); args.push(date) }
-    if (due_date !== undefined) { updates.push("due_date = ?"); args.push(due_date) }
-    if (tags !== undefined) {
-      const tagsString = Array.isArray(tags) ? tags.join(',') : tags
-      updates.push("tags = ?")
-      args.push(tagsString)
-    }
-    if (body.started_at !== undefined) { updates.push("started_at = ?"); args.push(body.started_at) }
-    if (body.time_elapsed !== undefined) { updates.push("time_elapsed = ?"); args.push(body.time_elapsed) }
-    
-    updates.push("updated_at = CURRENT_TIMESTAMP")
-    
-    args.push(id, user.id)
-    
-    await db.execute({
-      sql: `UPDATE tasks SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
-      args,
-    })
+    // Usar función segura que incluye cifrado automático
+    const updatedTask = await updateSecureTask(user.id, Number(id), {
+      title,
+      description,
+      category,
+      priority,
+      status,
+      duration,
+      completed,
+      hour,
+      date,
+      due_date,
+      tags,
+    }, request)
 
-    const result = await db.execute({
-      sql: "SELECT * FROM tasks WHERE id = ? AND user_id = ?",
-      args: [id, user.id],
-    })
+    console.log("✅ Tarea actualizada con cifrado")
 
-    console.log("✅ Tarea actualizada:", result.rows[0])
-
-    return NextResponse.json({ success: true, task: result.rows[0] })
+    return NextResponse.json({ success: true, task: updatedTask })
   } catch (error) {
     console.error("Error actualizando tarea:", error)
     return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })
@@ -194,7 +141,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - Eliminar tarea
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value
+    const token = request.cookies.get("auth-token")?.value
     if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
     const user = await verifyToken(token)
@@ -207,13 +154,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "ID es requerido" }, { status: 400 })
     }
 
-    const db = getDb()
-    await db.execute({
-      sql: "DELETE FROM tasks WHERE id = ? AND user_id = ?",
-      args: [id, user.id],
-    })
+    // Usar función segura que incluye logging de auditoría
+    await deleteSecureTask(user.id, Number(id), request)
 
-    console.log("✅ Tarea eliminada:", id)
+    console.log("✅ Tarea eliminada con logging de auditoría:", id)
 
     return NextResponse.json({ success: true })
   } catch (error) {

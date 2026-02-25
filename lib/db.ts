@@ -86,10 +86,61 @@ function initializeTables() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      data_collection BOOLEAN DEFAULT FALSE,
+      ai_analysis BOOLEAN DEFAULT FALSE,
+      data_sharing BOOLEAN DEFAULT FALSE,
+      marketing_emails BOOLEAN DEFAULT FALSE,
+      analytics_tracking BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS consents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      scope TEXT NOT NULL,
+      accepted BOOLEAN NOT NULL,
+      version TEXT NOT NULL,
+      accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ip_address TEXT,
+      user_agent TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS user_roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS data_access_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      data_type TEXT NOT NULL,
+      target_user_id INTEGER,
+      ip_address TEXT,
+      user_agent TEXT,
+      accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_moods_user_date ON moods(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_insights_user ON ai_insights(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id);
+    CREATE INDEX IF NOT EXISTS idx_consents_user ON consents(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles(user_id);
+    CREATE INDEX IF NOT EXISTS idx_data_access_logs_user ON data_access_logs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_data_access_logs_accessed ON data_access_logs(accessed_at);
   `)
   
   console.log("✅ Tablas creadas correctamente")

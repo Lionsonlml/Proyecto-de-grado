@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { GEMINI_CONFIG, getGeminiApiKey } from "@/lib/gemini-config"
-import { verifyToken, getUserTasks, getUserMoods, saveGeminiInsight } from "@/lib/auth"
+import { verifyToken, saveGeminiInsight } from "@/lib/auth"
+import { getGeminiUserTasks, getGeminiUserMoods } from "@/lib/secure-data"
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value
+    const token = request.cookies.get("auth-token")?.value
     if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
     const user = await verifyToken(token)
@@ -18,10 +19,10 @@ export async function POST(request: NextRequest) {
 
     const apiKey = getGeminiApiKey()
 
-    // SOLO datos de la base de datos
+    // SOLO datos de la base de datos SIN encriptación para Gemini
     const [dbTasks, dbMoods] = await Promise.all([
-      getUserTasks(user.id, date),
-      getUserMoods(user.id, date),
+      getGeminiUserTasks(user.id, user.id, date, request),
+      getGeminiUserMoods(user.id, user.id, date, request),
     ])
 
     console.log(`📊 Datos de BD - Tareas: ${dbTasks.length}, Moods: ${dbMoods.length}`)
@@ -89,7 +90,7 @@ Responde con este JSON exacto:
     
     // Llamar directamente a la API REST de Gemini
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/${GEMINI_CONFIG.model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

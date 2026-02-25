@@ -39,8 +39,37 @@ export function MoodSummary({ moods }: MoodSummaryProps) {
     return "Muy Mal"
   }
 
-  const trend =
-    recentMoods.length >= 2 ? moodValues[recentMoods[recentMoods.length - 1].mood] - moodValues[recentMoods[0].mood] : 0
+  // Calcular tendencia usando regresión lineal simple
+  const calculateTrend = () => {
+    if (recentMoods.length < 3) return 0
+    
+    // Convertir moods a valores numéricos con timestamps
+    const moodData = recentMoods.map((mood, index) => ({
+      value: moodValues[mood.mood],
+      time: index, // Usar índice como tiempo (más reciente = mayor índice)
+      timestamp: new Date(mood.timestamp).getTime()
+    }))
+    
+    // Ordenar por timestamp para asegurar orden cronológico
+    moodData.sort((a, b) => a.timestamp - b.timestamp)
+    
+    // Calcular regresión lineal simple
+    const n = moodData.length
+    const sumX = moodData.reduce((sum, d) => sum + d.time, 0)
+    const sumY = moodData.reduce((sum, d) => sum + d.value, 0)
+    const sumXY = moodData.reduce((sum, d) => sum + d.time * d.value, 0)
+    const sumXX = moodData.reduce((sum, d) => sum + d.time * d.time, 0)
+    
+    // Pendiente de la línea de regresión
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+    
+    // Si la pendiente es muy pequeña, considerar estable
+    if (Math.abs(slope) < 0.1) return 0
+    
+    return slope
+  }
+  
+  const trend = calculateTrend()
 
   return (
     <Card>
@@ -60,7 +89,9 @@ export function MoodSummary({ moods }: MoodSummaryProps) {
           {trend !== 0 && (
             <div className={`flex items-center gap-1 ${trend > 0 ? "text-green-600" : "text-red-600"}`}>
               {trend > 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-              <span className="text-sm font-medium">{trend > 0 ? "Mejorando" : "Bajando"}</span>
+              <span className="text-sm font-medium">
+                {trend > 0.2 ? "Mejorando" : trend < -0.2 ? "Bajando" : "Estable"}
+              </span>
             </div>
           )}
         </div>
