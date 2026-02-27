@@ -19,14 +19,17 @@ async function verifyUserAccess(userId: number, targetUserId: number, action: st
     return false
   }
 
-  // Registrar acceso en logs de auditoría
-  const clientIP = request?.headers.get('x-forwarded-for') || 
-                  request?.headers.get('x-real-ip') || 
+  // Registrar acceso en logs de auditoría (fire-and-forget: un fallo de auditoría
+  // nunca debe bloquear el acceso a datos del usuario)
+  const clientIP = request?.headers.get('x-forwarded-for') ||
+                  request?.headers.get('x-real-ip') ||
                   'unknown'
   const userAgent = request?.headers.get('user-agent') || 'unknown'
 
-  await logDataAccess(userId, action, dataType, targetUserId, clientIP, userAgent)
-  
+  logDataAccess(userId, action, dataType, targetUserId, clientIP, userAgent).catch(err => {
+    console.error('[audit] logDataAccess error:', err)
+  })
+
   return true
 }
 
