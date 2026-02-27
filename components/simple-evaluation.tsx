@@ -23,7 +23,8 @@ export function SimpleEvaluation({ lastResponse }: SimpleEvaluationProps) {
     if (lastResponse?.text) {
       evaluateResponse(lastResponse.text, lastResponse.type)
     }
-  }, [lastResponse])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResponse?.text, lastResponse?.type])
 
   const evaluateResponse = async (response: string, analysisType: string) => {
     setLoading(true)

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getUserByEmail, verifyPassword, createToken } from "@/lib/auth"
+import { ensureDbReady } from "@/lib/db"
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,6 +9,9 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: "Email y contraseña requeridos" }, { status: 400 })
     }
+
+    // Esperar a que la DB esté lista (tablas creadas) antes de consultar
+    await ensureDbReady()
 
     const user = await getUserByEmail(email)
 

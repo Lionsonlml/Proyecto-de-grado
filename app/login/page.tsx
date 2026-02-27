@@ -14,48 +14,43 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [loadingPhase, setLoadingPhase] = useState("")
+  const [errorMsg, setErrorMsg] = useState("")
   const router = useRouter()
   const { toast } = useToast()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setErrorMsg("")
+    setLoadingPhase("Conectando con la base de datos...")
 
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        toast({
-          title: "Error",
-          description: data.error || "Error al iniciar sesión",
-          variant: "destructive",
-        })
+        const msg = response.status === 401
+          ? "Email o contraseña incorrectos"
+          : data.error || "Error al iniciar sesión"
+        setErrorMsg(msg)
         return
       }
 
-      toast({
-        title: "¡Bienvenido!",
-        description: `Hola ${data.user.name}`,
-      })
-
+      setLoadingPhase("Preparando tu dashboard...")
+      toast({ title: "¡Bienvenido!", description: `Hola ${data.user.name}` })
       router.push("/dashboard")
       router.refresh()
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Error de conexión",
-        variant: "destructive",
-      })
+      setErrorMsg("Error de conexión. Verifica tu internet e intenta de nuevo.")
     } finally {
       setLoading(false)
+      setLoadingPhase("")
     }
   }
 
@@ -100,16 +95,28 @@ export default function LoginPage() {
                 disabled={loading}
               />
             </div>
+            {errorMsg && (
+              <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+                {errorMsg}
+              </div>
+            )}
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Iniciando sesión...
+                  {loadingPhase || "Iniciando sesión..."}
                 </>
               ) : (
                 "Iniciar Sesión"
               )}
             </Button>
+
+            {loading && (
+              <p className="text-xs text-center text-muted-foreground">
+                La primera conexión puede tardar unos segundos
+              </p>
+            )}
           </form>
 
           <div className="mt-6 space-y-4">
@@ -129,16 +136,13 @@ export default function LoginPage() {
 
           <div className="mt-6 p-4 bg-muted/50 rounded-lg space-y-2">
             <p className="text-sm font-medium text-center">Usuarios de prueba:</p>
-            <div className="text-xs space-y-1">
-              <p>
-                <strong>María (Matutina):</strong> maria@test.com / password123
-              </p>
-              <p>
-                <strong>Juan (Vespertina):</strong> juan@test.com / password123
-              </p>
-              <p>
-                <strong>Admin:</strong> admin@test.com / admin123
-              </p>
+            <div className="text-xs space-y-1 text-muted-foreground">
+              <p><strong className="text-foreground">María</strong> (productiva mañana) · maria@test.com</p>
+              <p><strong className="text-foreground">Juan</strong> (productivo tarde) · juan@test.com</p>
+              <p><strong className="text-foreground">Carlos</strong> (perfil estresado) · carlos@test.com</p>
+              <p><strong className="text-foreground">Laura</strong> (procrastinadora) · laura@test.com</p>
+              <p className="pt-1 border-t border-border"><strong className="text-foreground">Admin</strong> · admin@test.com / admin123</p>
+              <p className="text-center pt-1 opacity-70">Todos usan contraseña: <strong>password123</strong></p>
             </div>
           </div>
         </CardContent>

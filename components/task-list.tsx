@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { Task } from "@/lib/types"
 import { CheckCircle2, Circle, Clock, Edit, Trash2, Play, Pause, Lightbulb, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 
 interface TaskListProps {
   tasks: Task[]
@@ -39,18 +40,53 @@ function TaskTimer({ task, onResetTimer, resetTasks }: { task: Task, onResetTime
     setIsClient(true)
   }, [])
 
+  // Limpiar localStorage cuando la tarea sale de en-progreso
   useEffect(() => {
-    if (!isClient || task.status !== 'en-progreso' || !task.startedAt) {
+    if (task.status !== 'en-progreso') {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`tw_timer_${task.id}`)
+      }
+    }
+  }, [task.status, task.id])
+
+  useEffect(() => {
+    if (!isClient || task.status !== 'en-progreso') {
       setElapsed(0)
       return
     }
 
-    // Si la tarea fue reseteada, usar tiempo actual
-    const startTime = resetTasks.has(task.id) 
-      ? Date.now() 
-      : new Date(task.startedAt).getTime()
-    
-    const baseElapsed = resetTasks.has(task.id) ? 0 : (task.timeElapsed || 0)
+    let startTime: number
+    let baseElapsed: number
+
+    if (resetTasks.has(task.id)) {
+      // Timer reseteado: empezar desde cero y persistir
+      startTime = Date.now()
+      baseElapsed = 0
+      localStorage.setItem(`tw_timer_${task.id}`, JSON.stringify({ startTime, baseElapsed }))
+    } else {
+      // Intentar leer desde localStorage
+      const stored = localStorage.getItem(`tw_timer_${task.id}`)
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          startTime = parsed.startTime
+          baseElapsed = parsed.baseElapsed ?? 0
+        } catch {
+          startTime = task.startedAt ? new Date(task.startedAt).getTime() : Date.now()
+          baseElapsed = task.timeElapsed || 0
+          localStorage.setItem(`tw_timer_${task.id}`, JSON.stringify({ startTime, baseElapsed }))
+        }
+      } else if (task.startedAt) {
+        // Sin localStorage: usar startedAt de la tarea y persistir
+        startTime = new Date(task.startedAt).getTime()
+        baseElapsed = task.timeElapsed || 0
+        localStorage.setItem(`tw_timer_${task.id}`, JSON.stringify({ startTime, baseElapsed }))
+      } else {
+        startTime = Date.now()
+        baseElapsed = 0
+        localStorage.setItem(`tw_timer_${task.id}`, JSON.stringify({ startTime, baseElapsed }))
+      }
+    }
 
     const updateTimer = () => {
       const now = Date.now()
@@ -60,7 +96,6 @@ function TaskTimer({ task, onResetTimer, resetTasks }: { task: Task, onResetTime
 
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
-
     return () => clearInterval(interval)
   }, [isClient, task.status, task.startedAt, task.timeElapsed, task.id, resetTasks])
 
@@ -73,45 +108,70 @@ function TaskTimer({ task, onResetTimer, resetTasks }: { task: Task, onResetTime
 
   if (task.status !== 'en-progreso') return null
 
+  const estimatedSeconds = (task.estimatedMinutes || 60) * 60
+  const progress = Math.min((elapsed / estimatedSeconds) * 100, 100)
+  const isOverTime = elapsed > estimatedSeconds
+
+  const ringColor = isOverTime
+    ? "text-red-700 dark:text-red-400 bg-red-500/10"
+    : progress >= 75
+    ? "text-amber-700 dark:text-amber-400 bg-amber-500/10"
+    : "text-blue-700 dark:text-blue-400 bg-blue-500/10"
+
+  const barColor = isOverTime ? "bg-red-500" : progress >= 75 ? "bg-amber-500" : "bg-blue-500"
+
   if (!isClient) {
     return (
-      <div className="flex items-center justify-between gap-2 text-sm font-mono bg-blue-500/10 text-blue-700 dark:text-blue-400 px-3 py-1.5 rounded-md">
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 animate-pulse" />
-          <span>00:00:00</span>
+      <div className="space-y-1.5">
+        <div className={cn("flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm", "text-blue-700 dark:text-blue-400 bg-blue-500/10")}>
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="h-4 w-4 animate-pulse shrink-0" />
+            <span className="font-mono font-medium tabular-nums">00:00:00</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs opacity-60 font-mono tabular-nums">/ {formatTime(estimatedSeconds)}</span>
+            <Button variant="ghost" size="sm" onClick={() => onResetTimer(task.id)} className="h-6 px-2 text-xs">
+              Reset
+            </Button>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onResetTimer(task.id)}
-          className="h-6 px-2 text-xs"
-        >
-          Reset
-        </Button>
+        <div className="h-1.5 rounded-full bg-secondary overflow-hidden mx-1">
+          <div className="h-full rounded-full bg-blue-500 transition-all duration-1000" style={{ width: '0%' }} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 text-sm font-mono bg-blue-500/10 text-blue-700 dark:text-blue-400 px-3 py-1.5 rounded-md">
-      <div className="flex items-center gap-2">
-        <Clock className="h-4 w-4 animate-pulse" />
-        <span>{formatTime(elapsed)}</span>
+    <div className="space-y-1.5">
+      <div className={cn("flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm", ringColor)}>
+        <div className="flex items-center gap-2 min-w-0">
+          <Clock className="h-4 w-4 animate-pulse shrink-0" />
+          <span className="font-mono font-medium tabular-nums">{formatTime(elapsed)}</span>
+          {isOverTime && (
+            <span className="text-xs opacity-80 hidden sm:inline">• Tiempo excedido</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs opacity-60 font-mono tabular-nums">/ {formatTime(estimatedSeconds)}</span>
+          <Button variant="ghost" size="sm" onClick={() => onResetTimer(task.id)} className="h-6 px-2 text-xs">
+            Reset
+          </Button>
+        </div>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onResetTimer(task.id)}
-        className="h-6 px-2 text-xs"
-      >
-        Reset
-      </Button>
+      <div className="h-1.5 rounded-full bg-secondary overflow-hidden mx-1">
+        <div
+          className={cn("h-full rounded-full transition-all duration-1000", barColor)}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
     </div>
   )
 }
 
 function TaskAdvice({ task }: { task: Task }) {
   const [advice, setAdvice] = useState<string>("")
+  const [source, setSource] = useState<AiSource>("gemini")
   const [loading, setLoading] = useState(false)
   const [showAdvice, setShowAdvice] = useState(false)
 
@@ -123,10 +183,13 @@ function TaskAdvice({ task }: { task: Task }) {
 
     setLoading(true)
     try {
+      // Extraer ID numérico (quitar prefijo "db-" si existe)
+      const numericId = task.id.replace(/^db-/, "")
       const response = await fetch("/api/gemini/advice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          taskId: numericId,
           title: task.title,
           description: task.description,
           category: task.category,
@@ -138,6 +201,7 @@ function TaskAdvice({ task }: { task: Task }) {
       if (response.ok) {
         const data = await response.json()
         setAdvice(data.advice)
+        setSource(data.source ?? "gemini")
         setShowAdvice(true)
       }
     } catch (error) {
@@ -157,10 +221,11 @@ function TaskAdvice({ task }: { task: Task }) {
         className="gap-2 text-xs"
       >
         <Lightbulb className="h-3 w-3" />
-        {loading ? "Generando consejo..." : advice ? (showAdvice ? "Ocultar consejo" : "Ver consejo") : "Obtener consejo de IA"}
+        {loading ? "Generando consejo..." : advice ? (showAdvice ? "Ocultar consejo" : "Ver consejo") : "Consejo de IA"}
       </Button>
       {showAdvice && advice && (
-        <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-md text-sm">
+        <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-md text-sm space-y-2">
+          <AiSourceBadge source={source} />
           <p className="text-yellow-800 dark:text-yellow-200">{advice}</p>
         </div>
       )}
@@ -185,7 +250,9 @@ export function TaskList({ tasks, onEdit, onDelete, onStatusChange }: TaskListPr
       })
       // Marcar tarea como reseteada para actualizar el timer localmente
       setResetTasks(prev => new Set([...prev, taskId]))
-      console.log("Timer reseteado para tarea:", taskId)
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Timer reseteado para tarea:", taskId)
+      }
     } catch (error) {
       console.error("Error reseteando timer:", error)
     }

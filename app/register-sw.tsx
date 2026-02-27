@@ -50,13 +50,15 @@ export function RegisterServiceWorker() {
       })
     }
 
-    // Detectar si la app está instalada
-    window.addEventListener("beforeinstallprompt", (e) => {
-      e.preventDefault()
-      // Guardar el evento para mostrarlo más tarde
-      ;(window as any).deferredPrompt = e
-      console.log("💡 App lista para instalar")
-    })
+    // Detectar si la app está instalada (solo en navegadores web, no en Capacitor)
+    if (!(window as any).Capacitor) {
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault()
+        // Guardar el evento para mostrarlo más tarde
+        ;(window as any).deferredPrompt = e
+        console.log("💡 App lista para instalar")
+      })
+    }
 
     // Detectar cuando la app se instala
     window.addEventListener("appinstalled", () => {

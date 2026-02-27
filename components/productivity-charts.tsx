@@ -5,37 +5,44 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts"
 import { TrendingUp, Activity, Clock, Zap } from "lucide-react"
 
-export function ProductivityCharts() {
-  const [tasks, setTasks] = useState<any[]>([])
-  const [moods, setMoods] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+interface ProductivityChartsProps {
+  tasks?: any[]
+  moods?: any[]
+}
+
+export function ProductivityCharts({ tasks: propTasks, moods: propMoods }: ProductivityChartsProps = {}) {
+  const [tasks, setTasks] = useState<any[]>(propTasks ?? [])
+  const [moods, setMoods] = useState<any[]>(propMoods ?? [])
+  const [loading, setLoading] = useState(!propTasks && !propMoods)
 
   useEffect(() => {
-    loadData()
-  }, [])
+    if (propTasks !== undefined) setTasks(propTasks)
+    if (propMoods !== undefined) setMoods(propMoods)
+  }, [propTasks, propMoods])
 
-  const loadData = async () => {
-    try {
-      const [tasksRes, moodsRes] = await Promise.all([
-        fetch("/api/tasks"),
-        fetch("/api/moods"),
-      ])
-
-      if (tasksRes.ok) {
-        const data = await tasksRes.json()
-        setTasks(data.tasks || [])
-      }
-
-      if (moodsRes.ok) {
-        const data = await moodsRes.json()
-        setMoods(data.moods || [])
-      }
-    } catch (error) {
-      console.error("Error cargando datos:", error)
-    } finally {
+  useEffect(() => {
+    // Solo hacer fetch propio si no se recibieron props
+    if (propTasks !== undefined || propMoods !== undefined) {
       setLoading(false)
+      return
     }
-  }
+    const loadData = async () => {
+      try {
+        const [tasksRes, moodsRes] = await Promise.all([
+          fetch("/api/tasks"),
+          fetch("/api/moods"),
+        ])
+        if (tasksRes.ok) setTasks((await tasksRes.json()).tasks || [])
+        if (moodsRes.ok) setMoods((await moodsRes.json()).moods || [])
+      } catch (error) {
+        console.error("Error cargando datos:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Gráfica de tareas por hora
   const tasksByHour = tasks.reduce((acc: any, task: any) => {
@@ -121,7 +128,7 @@ export function ProductivityCharts() {
             <LineChart data={energyData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="hour" className="text-xs" />
-              <YAxis domain={[0, 10]} className="text-xs" />
+              <YAxis domain={[0, 5]} className="text-xs" />
               <Tooltip 
                 contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
                 labelStyle={{ color: 'hsl(var(--foreground))' }}

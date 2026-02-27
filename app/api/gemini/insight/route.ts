@@ -10,9 +10,8 @@ export async function POST(request: NextRequest) {
 
     const prompt = `Contexto del usuario: ${JSON.stringify(context, null, 2)}\n\nPregunta: ${question}\n\nProporciona un insight breve y accionable basado en los datos del usuario.`
 
-    // Usar REST API directa con v1 (no GoogleGenerativeAI que usa v1beta)
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/${GEMINI_CONFIG.model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

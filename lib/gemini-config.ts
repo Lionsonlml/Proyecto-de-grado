@@ -1,7 +1,7 @@
 // Configuración de Gemini AI (solo para uso en servidor)
 export const GEMINI_CONFIG = {
-  model: "gemini-2.0-flash",
-  apiVersion: "v1",
+  model: "gemini-2.5-flash-lite",
+  apiVersion: "v1beta",
   generationConfig: {
     temperature: 0.7,
     topK: 40,

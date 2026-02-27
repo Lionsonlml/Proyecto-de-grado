@@ -4,14 +4,23 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Lightbulb, Loader2 } from "lucide-react"
+import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 
 interface RecommendationsProps {
   onResponseGenerated?: (response: string) => void
+  initialResult?: string
+  initialGeneratedAt?: string
 }
 
-export function Recommendations({ onResponseGenerated }: RecommendationsProps) {
+export function Recommendations({ onResponseGenerated, initialResult, initialGeneratedAt }: RecommendationsProps) {
   const [loading, setLoading] = useState(false)
-  const [recommendations, setRecommendations] = useState<any>(null)
+  const [recommendations, setRecommendations] = useState<any>(() => {
+    if (!initialResult) return null
+    try { return JSON.parse(initialResult) } catch { return { text: initialResult } }
+  })
+  const [source, setSource] = useState<AiSource>("gemini")
+  const [cachedAt, setCachedAt] = useState<string | undefined>()
+  const [generatedAt, setGeneratedAt] = useState<string | null>(initialGeneratedAt ?? null)
 
   const getRecommendations = async () => {
     setLoading(true)
@@ -19,20 +28,18 @@ export function Recommendations({ onResponseGenerated }: RecommendationsProps) {
       const response = await fetch("/api/gemini/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          analysisType: "recommendations",
-        }),
+        body: JSON.stringify({ analysisType: "recommendations" }),
       })
 
       if (!response.ok) throw new Error("Error al obtener recomendaciones")
 
       const data = await response.json()
-      console.log("Recommendations data:", data)
-      
       const recommendationsResult = data.parsed || { text: data.response || "Sin respuesta del modelo" }
       setRecommendations(recommendationsResult)
-      
-      // Pasar la respuesta al componente padre
+      setSource(data.source ?? "gemini")
+      setCachedAt(data.cachedAt)
+      setGeneratedAt(new Date().toISOString())
+
       if (onResponseGenerated) {
         onResponseGenerated(data.response || recommendationsResult.text || "")
       }
@@ -60,13 +67,21 @@ export function Recommendations({ onResponseGenerated }: RecommendationsProps) {
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Obteniendo...
             </>
+          ) : recommendations ? (
+            "Actualizar recomendaciones"
           ) : (
             "Obtener Recomendaciones"
           )}
         </Button>
+        {generatedAt && !loading && (
+          <p className="text-xs text-muted-foreground text-center">
+            Último análisis: {new Date(generatedAt).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+          </p>
+        )}
 
         {recommendations && (
           <div className="space-y-3">
+            {!recommendations.error && <AiSourceBadge source={source} cachedAt={cachedAt} />}
             {recommendations.error ? (
               <p className="text-sm text-destructive">{recommendations.error}</p>
             ) : (

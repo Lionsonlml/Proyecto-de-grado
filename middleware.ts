@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Verificar token
-  const token = request.cookies.get("token")?.value
+  const token = request.cookies.get("auth-token")?.value
 
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url))

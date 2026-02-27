@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, Sparkles, Calendar, Loader2 } from "lucide-r
 import { AppLayout } from "@/components/app-layout"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 
 export default function SchedulePage() {
   const [blocks, setBlocks] = useState<TimeBlock[]>([])
@@ -20,8 +21,53 @@ export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<"original" | "optimized">("original")
   const [optimizing, setOptimizing] = useState(false)
+  const [optimizeSource, setOptimizeSource] = useState<AiSource>("gemini")
+  const [optimizeCachedAt, setOptimizeCachedAt] = useState<string | undefined>()
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null)
 
   const dateStr = currentDate.toISOString().split("T")[0]
+
+  const calculateEndTime = (startTime: string, durationMin: number) => {
+    const [hour, minute] = startTime.split(':').map(Number)
+    const endMinutes = minute + durationMin
+    const endHour = Math.min(23, hour + Math.floor(endMinutes / 60))
+    const endMin = endMinutes % 60
+    return `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+  }
+
+  // Cargar último horario optimizado al montar
+  useEffect(() => {
+    const loadLastSchedule = async () => {
+      try {
+        const res = await fetch("/api/insights?type=schedule:optimize&limit=1")
+        if (!res.ok) return
+        const data = await res.json()
+        const insights: any[] = data.insights || []
+        if (insights.length === 0) return
+        const last = insights[0]
+        const scheduleItems: any[] = JSON.parse(last.response)
+        if (!Array.isArray(scheduleItems) || scheduleItems.length === 0) return
+        const today = new Date().toISOString().split("T")[0]
+        const targetDate = last.metadata ? (() => { try { return JSON.parse(last.metadata)?.date || today } catch { return today } })() : today
+        const optimized: TimeBlock[] = scheduleItems.map((item: any, index: number) => ({
+          id: `opt-hist-${index}`,
+          title: item.task || item.title || "",
+          startTime: item.time || item.startTime || "09:00",
+          endTime: item.endTime || calculateEndTime(item.time || item.startTime || "09:00", item.duration || 60),
+          date: targetDate,
+          type: "tarea" as const,
+          completed: false,
+        }))
+        setOptimizedBlocks(optimized)
+        setView("optimized")
+        setOptimizeSource("cache")
+        setLastGeneratedAt(last.created_at as string)
+      } catch {
+        // Ignorar errores al cargar historial
+      }
+    }
+    loadLastSchedule()
+  }, []) // solo al montar
 
   const loadData = async () => {
     try {
@@ -76,7 +122,9 @@ export default function SchedulePage() {
       if (!response.ok) throw new Error("Error optimizando")
 
       const data = await response.json()
-      
+      setOptimizeSource(data.source ?? "gemini")
+      setOptimizeCachedAt(data.cachedAt)
+
       // Convertir schedule optimizado a bloques
       const optimized: TimeBlock[] = (data.optimizedSchedule || []).map((item: any, index: number) => ({
         id: `opt-${index}`,
@@ -92,18 +140,9 @@ export default function SchedulePage() {
       setView("optimized")
     } catch (error) {
       console.error("Error optimizando horario:", error)
-      alert("Error al optimizar el horario. Verifica que haya tareas pendientes.")
     } finally {
       setOptimizing(false)
     }
-  }
-
-  const calculateEndTime = (startTime: string, durationMin: number) => {
-    const [hour, minute] = startTime.split(':').map(Number)
-    const endMinutes = minute + durationMin
-    const endHour = Math.min(23, hour + Math.floor(endMinutes / 60))
-    const endMin = endMinutes % 60
-    return `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
   }
 
   const navigateDay = (direction: number) => {
@@ -130,7 +169,7 @@ export default function SchedulePage() {
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Optimizar con IA
+                  {optimizedBlocks.length > 0 ? "Regenerar con IA" : "Optimizar con IA"}
                 </>
               )}
             </Button>
@@ -206,9 +245,17 @@ export default function SchedulePage() {
                   <CardTitle className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-primary" />
                     Horario Optimizado por IA
+                    {optimizedBlocks.length > 0 && (
+                      <AiSourceBadge source={optimizeSource} cachedAt={optimizeCachedAt} />
+                    )}
                   </CardTitle>
                   <CardDescription>
                     Gemini ha reorganizado tus tareas según tus patrones de energía para máxima productividad
+                    {lastGeneratedAt && (
+                      <span className="block mt-1 text-xs opacity-70">
+                        Generado el {format(new Date(lastGeneratedAt), "dd 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}
+                      </span>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
