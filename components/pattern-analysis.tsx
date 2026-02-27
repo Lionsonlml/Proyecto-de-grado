@@ -4,14 +4,23 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TrendingUp, Loader2 } from "lucide-react"
+import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 
 interface PatternAnalysisProps {
   onResponseGenerated?: (response: string) => void
+  initialResult?: string
+  initialGeneratedAt?: string
 }
 
-export function PatternAnalysis({ onResponseGenerated }: PatternAnalysisProps) {
+export function PatternAnalysis({ onResponseGenerated, initialResult, initialGeneratedAt }: PatternAnalysisProps) {
   const [loading, setLoading] = useState(false)
-  const [analysis, setAnalysis] = useState<any>(null)
+  const [analysis, setAnalysis] = useState<any>(() => {
+    if (!initialResult) return null
+    try { return JSON.parse(initialResult) } catch { return { text: initialResult } }
+  })
+  const [source, setSource] = useState<AiSource>("gemini")
+  const [cachedAt, setCachedAt] = useState<string | undefined>()
+  const [generatedAt, setGeneratedAt] = useState<string | null>(initialGeneratedAt ?? null)
 
   const analyzePatterns = async () => {
     setLoading(true)
@@ -19,20 +28,18 @@ export function PatternAnalysis({ onResponseGenerated }: PatternAnalysisProps) {
       const response = await fetch("/api/gemini/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          analysisType: "patterns",
-        }),
+        body: JSON.stringify({ analysisType: "patterns" }),
       })
 
       if (!response.ok) throw new Error("Error al analizar")
 
       const data = await response.json()
-      console.log("Pattern analysis data:", data)
-      
       const analysisResult = data.parsed || { text: data.response || "Sin respuesta del modelo" }
       setAnalysis(analysisResult)
-      
-      // Pasar la respuesta al componente padre
+      setSource(data.source ?? "gemini")
+      setCachedAt(data.cachedAt)
+      setGeneratedAt(new Date().toISOString())
+
       if (onResponseGenerated) {
         onResponseGenerated(data.response || analysisResult.text || "")
       }
@@ -60,13 +67,21 @@ export function PatternAnalysis({ onResponseGenerated }: PatternAnalysisProps) {
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Analizando...
             </>
+          ) : analysis ? (
+            "Actualizar análisis"
           ) : (
             "Analizar Patrones"
           )}
         </Button>
+        {generatedAt && !loading && (
+          <p className="text-xs text-muted-foreground text-center">
+            Último análisis: {new Date(generatedAt).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+          </p>
+        )}
 
         {analysis && (
           <div className="space-y-3">
+            {!analysis.error && <AiSourceBadge source={source} cachedAt={cachedAt} />}
             {analysis.error ? (
               <p className="text-sm text-destructive">{analysis.error}</p>
             ) : (

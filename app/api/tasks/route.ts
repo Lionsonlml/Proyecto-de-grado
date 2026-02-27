@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
       tags: tagsString,
     }, request)
 
-    console.log("✅ Tarea creada con cifrado")
+    if (process.env.NODE_ENV !== "production") {
+      console.log("✅ Tarea creada con cifrado")
+    }
 
     return NextResponse.json({ success: true, message: "Tarea creada exitosamente" })
   } catch (error) {
@@ -129,7 +131,9 @@ export async function PUT(request: NextRequest) {
       tags,
     }, request)
 
-    console.log("✅ Tarea actualizada con cifrado")
+    if (process.env.NODE_ENV !== "production") {
+      console.log("✅ Tarea actualizada con cifrado")
+    }
 
     return NextResponse.json({ success: true, task: updatedTask })
   } catch (error) {
@@ -157,7 +161,9 @@ export async function DELETE(request: NextRequest) {
     // Usar función segura que incluye logging de auditoría
     await deleteSecureTask(user.id, Number(id), request)
 
-    console.log("✅ Tarea eliminada con logging de auditoría:", id)
+    if (process.env.NODE_ENV !== "production") {
+      console.log("✅ Tarea eliminada con logging de auditoría:", id)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -1,18 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { fetchWithCache, invalidateCache } from "@/lib/client-cache"
 import { StatsCard } from "@/components/stats-card"
 import { QuickActions } from "@/components/quick-actions"
 import { RecentTasks } from "@/components/recent-tasks"
 import { MoodSummary } from "@/components/mood-summary"
 import { ProductivityCharts } from "@/components/productivity-charts"
 import { MotivationalQuotes } from "@/components/motivational-quotes"
-import type { Task, Mood, TimeBlock } from "@/lib/types"
+import type { Task, Mood } from "@/lib/types"
 import { CheckCircle2, ListTodo, Clock, Calendar } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 
 export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [rawTasks, setRawTasks] = useState<any[]>([])
+  const [rawMoods, setRawMoods] = useState<any[]>([])
   const [moods, setMoods] = useState<Mood[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -28,42 +31,36 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Cargar tareas
-        const tasksRes = await fetch("/api/tasks")
-        if (tasksRes.ok) {
-          const tasksData = await tasksRes.json()
-          const convertedTasks: Task[] = (tasksData.tasks || []).map((t: any) => ({
-            id: String(t.id),
-            title: t.title,
-            description: t.description || undefined,
-            category: "trabajo" as const,
-            priority: "media" as const,
-            status: t.completed ? "completada" as const : "pendiente" as const,
-            estimatedMinutes: t.duration || undefined,
-            dueDate: t.date || undefined,
-            createdAt: t.created_at || new Date().toISOString(),
-            updatedAt: t.created_at || new Date().toISOString(),
-          }))
-          setTasks(convertedTasks)
-        }
+        // Un solo round-trip a /api/user/data (tasks + moods en Promise.all interno)
+        const userData = await fetchWithCache<{ tasks: any[]; moods: any[] }>("/api/user/data")
 
-        // Cargar moods
-        const moodsRes = await fetch("/api/moods")
-        if (moodsRes.ok) {
-          const moodsData = await moodsRes.json()
-          const convertedMoods: Mood[] = (moodsData.moods || []).map((m: any) => ({
-            id: String(m.id),
-            mood: convertMoodType(m.type),
-            energy: m.energy,
-            focus: m.focus,
-            stress: m.stress,
-            notes: m.notes || undefined,
-            timestamp: m.created_at || new Date().toISOString(),
-          }))
-          // Ordenar por timestamp descendente (más reciente primero)
-          const sortedMoods = convertedMoods.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          setMoods(sortedMoods)
-        }
+        setRawTasks(userData.tasks || [])
+        const convertedTasks: Task[] = (userData.tasks || []).map((t: any) => ({
+          id: String(t.id),
+          title: t.title,
+          description: t.description || undefined,
+          category: (t.category || "personal") as Task["category"],
+          priority: (t.priority || "media") as Task["priority"],
+          status: (t.status || (t.completed ? "completada" : "pendiente")) as Task["status"],
+          estimatedMinutes: t.duration || undefined,
+          dueDate: t.due_date || t.date || undefined,
+          createdAt: t.created_at || new Date().toISOString(),
+          updatedAt: t.created_at || new Date().toISOString(),
+        }))
+        setTasks(convertedTasks)
+
+        setRawMoods(userData.moods || [])
+        const convertedMoods: Mood[] = (userData.moods || []).map((m: any) => ({
+          id: String(m.id),
+          mood: convertMoodType(m.type),
+          energy: m.energy,
+          focus: m.focus,
+          stress: m.stress,
+          notes: m.notes || undefined,
+          timestamp: m.created_at || new Date().toISOString(),
+        }))
+        const sortedMoods = convertedMoods.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        setMoods(sortedMoods)
       } catch (error) {
         console.error("Error cargando datos:", error)
       } finally {
@@ -75,36 +72,50 @@ export default function DashboardPage() {
   }, [])
 
   const handleStatusChange = async (id: string, status: Task["status"]) => {
+    const completed = status === "completada"
+
+    // 1. Optimistic update inmediato — sin esperar al servidor
+    setTasks(prev =>
+      prev.map(t => (t.id === id ? { ...t, status, completed: undefined } : t))
+    )
+    setRawTasks(prev =>
+      prev.map(t =>
+        (String(t.id) === id || String(t.id) === id.replace(/^db-/, ""))
+          ? { ...t, status, completed: completed ? 1 : 0 }
+          : t
+      )
+    )
+
+    // 2. Persistir en backend sin re-fetch
     try {
       await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id,
-          completed: status === "completada" ? 1 : 0,
+          id: id.replace(/^db-/, ""),
+          status,
+          completed: completed ? 1 : 0,
         }),
       })
-      
-      // Recargar tareas
-      const tasksRes = await fetch("/api/tasks")
-      if (tasksRes.ok) {
-        const tasksData = await tasksRes.json()
-        const convertedTasks: Task[] = (tasksData.tasks || []).map((t: any) => ({
-          id: String(t.id),
-          title: t.title,
-          description: t.description || undefined,
-          category: "trabajo" as const,
-          priority: "media" as const,
-          status: t.completed ? "completada" as const : "pendiente" as const,
-          estimatedMinutes: t.duration || undefined,
-          dueDate: t.date || undefined,
-          createdAt: t.created_at || new Date().toISOString(),
-          updatedAt: t.created_at || new Date().toISOString(),
-        }))
-        setTasks(convertedTasks)
-      }
+      // Invalidar caché silenciosamente para que la próxima navegación traiga datos frescos
+      invalidateCache("/api/user/data")
     } catch (error) {
       console.error("Error actualizando estado:", error)
+      // Revertir optimistic update si falla
+      const userData = await fetchWithCache<{ tasks: any[]; moods: any[] }>("/api/user/data")
+      const convertedTasks: Task[] = (userData.tasks || []).map((t: any) => ({
+        id: String(t.id),
+        title: t.title,
+        description: t.description || undefined,
+        category: (t.category || "personal") as Task["category"],
+        priority: (t.priority || "media") as Task["priority"],
+        status: (t.status || (t.completed ? "completada" : "pendiente")) as Task["status"],
+        estimatedMinutes: t.duration || undefined,
+        dueDate: t.due_date || t.date || undefined,
+        createdAt: t.created_at || new Date().toISOString(),
+        updatedAt: t.created_at || new Date().toISOString(),
+      }))
+      setTasks(convertedTasks)
     }
   }
 
@@ -148,9 +159,9 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Gráficas de Productividad */}
+        {/* Gráficas de Productividad — datos del fetch del dashboard (sin llamada extra) */}
         <div className="mb-6 md:mb-8">
-          <ProductivityCharts />
+          <ProductivityCharts tasks={rawTasks} moods={rawMoods} />
         </div>
 
         {/* Main Content Grid */}

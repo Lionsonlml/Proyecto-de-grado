@@ -317,7 +317,7 @@ export async function saveSecureMood(userId: number, moodData: {
 }
 
 // Obtener insights de IA con cifrado/descifrado automático
-export async function getSecureUserInsights(userId: number, targetUserId: number, limit = 20, request?: Request) {
+export async function getSecureUserInsights(userId: number, targetUserId: number, limit = 20, request?: Request, analysisType?: string) {
   // Verificar permisos de acceso
   const hasAccess = await verifyUserAccess(userId, targetUserId, 'read', 'ai_insights', request)
   if (!hasAccess) {
@@ -325,10 +325,15 @@ export async function getSecureUserInsights(userId: number, targetUserId: number
   }
 
   const db = getDb()
-  const result = await db.execute({
-    sql: "SELECT * FROM ai_insights WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
-    args: [targetUserId, limit],
-  })
+  const result = analysisType
+    ? await db.execute({
+        sql: "SELECT * FROM ai_insights WHERE user_id = ? AND analysis_type = ? ORDER BY created_at DESC LIMIT ?",
+        args: [targetUserId, analysisType, limit],
+      })
+    : await db.execute({
+        sql: "SELECT * FROM ai_insights WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+        args: [targetUserId, limit],
+      })
   
   // Descifrar datos sensibles
   return result.rows.map(row => {
@@ -422,20 +427,27 @@ export async function getGeminiUserTasks(userId: number, targetUserId: number, d
     })
   }
   
-  // Devolver datos SIN desencriptar - tal como están en la BD
-  return result.rows.map(row => ({
-    id: row.id,
-    title: row.title as string,
-    description: row.description as string,
-    category: row.category as string,
-    priority: row.priority as string,
-    status: row.status as string,
-    duration: row.duration as number,
-    completed: row.completed as number,
-    hour: row.hour as number,
-    date: row.date as string,
-    tags: row.tags as string,
-  }))
+  // Descifrar campos sensibles antes de enviar a Gemini
+  return result.rows.map(row => {
+    const decrypted = decryptTaskData({
+      title: row.title as string,
+      description: row.description as string | null,
+      tags: row.tags as string | null,
+    })
+    return {
+      id: row.id,
+      title: decrypted.title,
+      description: decrypted.description,
+      category: row.category as string,
+      priority: row.priority as string,
+      status: row.status as string,
+      duration: row.duration as number,
+      completed: row.completed as number,
+      hour: row.hour as number,
+      date: row.date as string,
+      tags: decrypted.tags,
+    }
+  })
 }
 
 // Obtener moods SIN desencriptar para enviar a Gemini
@@ -460,7 +472,7 @@ export async function getGeminiUserMoods(userId: number, targetUserId: number, d
     })
   }
   
-  // Devolver datos SIN desencriptar
+  // Descifrar notes antes de enviar a Gemini
   return result.rows.map(row => ({
     id: row.id,
     type: row.type as string,
@@ -469,6 +481,6 @@ export async function getGeminiUserMoods(userId: number, targetUserId: number, d
     focus: row.focus as number,
     stress: row.stress as number,
     date: row.date as string,
-    notes: row.notes as string,
+    notes: decryptMoodNotes(row.notes as string | null),
   }))
 }

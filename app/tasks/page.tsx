@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { fetchWithCache, invalidateCache } from "@/lib/client-cache"
 import { Button } from "@/components/ui/button"
 import { TaskForm } from "@/components/task-form"
 import { TaskList } from "@/components/task-list"
@@ -14,12 +15,14 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState<Task | undefined>()
   const [loading, setLoading] = useState(true)
 
-  const loadTasks = async () => {
+  const loadTasks = async (invalidate = false) => {
     try {
-      const response = await fetch("/api/tasks")
-      if (!response.ok) return
-      const data = await response.json()
-      
+      if (invalidate) {
+        invalidateCache("/api/tasks")
+        invalidateCache("/api/user/data") // también invalidar caché del dashboard
+      }
+      const data = await fetchWithCache<{ tasks: any[] }>("/api/tasks")
+
       // Convertir tareas de BD al formato de Task
       const convertedTasks: Task[] = (data.tasks || []).map((t: any) => ({
         id: String(t.id),
@@ -103,7 +106,7 @@ export default function TasksPage() {
         console.log("✅ Tarea creada exitosamente")
       }
       
-      await loadTasks()
+      await loadTasks(true)
       setShowForm(false)
       setEditingTask(undefined)
     } catch (error) {
@@ -122,7 +125,7 @@ export default function TasksPage() {
     
     try {
       await fetch(`/api/tasks?id=${id}`, { method: "DELETE" })
-      await loadTasks()
+      await loadTasks(true)
     } catch (error) {
       console.error("Error eliminando tarea:", error)
     }
@@ -152,7 +155,7 @@ export default function TasksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
       })
-      await loadTasks()
+      await loadTasks(true)
     } catch (error) {
       console.error("Error actualizando estado:", error)
     }

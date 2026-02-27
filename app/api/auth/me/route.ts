@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken, getUserById } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,19 +9,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
 
+    // El JWT ya contiene { id, email, name } — no necesitamos consultar Turso
     const payload = await verifyToken(token)
 
     if (!payload) {
       return NextResponse.json({ error: "Token inválido" }, { status: 401 })
     }
 
-    const user = await getUserById(payload.id)
-
-    if (!user) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
-    }
-
-    return NextResponse.json({ user })
+    const response = NextResponse.json({
+      user: { id: payload.id, email: payload.email, name: payload.name },
+    })
+    // Caché privada 60s: el cliente la cachea y no vuelve a pedir en cada navegación
+    response.headers.set("Cache-Control", "private, max-age=60")
+    return response
   } catch (error) {
     console.error("Error verificando usuario:", error)
     return NextResponse.json({ error: "Error en el servidor" }, { status: 500 })

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Sparkles, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Mood } from "@/lib/types"
+import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 
 interface MotivationalQuotesProps {
   moods: Mood[]
@@ -14,6 +15,8 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
   const [quote, setQuote] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [context, setContext] = useState<string>("")
+  const [source, setSource] = useState<AiSource>("gemini")
+  const [cachedAt, setCachedAt] = useState<string | undefined>(undefined)
 
   const generateQuote = async () => {
     if (moods.length === 0) return
@@ -22,7 +25,7 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
     try {
       // Ordenar moods por timestamp descendente para obtener el más reciente
       const sortedMoods = [...moods].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      const lastMood = sortedMoods[0] // El mood más reciente
+      const lastMood = sortedMoods[0]
       const energy = lastMood.energy
       const focus = lastMood.focus
       const stress = lastMood.stress
@@ -44,10 +47,13 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
         const data = await response.json()
         setQuote(data.quote)
         setContext(data.context)
+        setSource(data.source ?? "gemini")
+        setCachedAt(data.cachedAt)
       }
     } catch (error) {
       console.error("Error generando frase motivacional:", error)
-      setQuote("¡Cada día es una nueva oportunidad para brillar! ✨")
+      setQuote("¡Cada día es una nueva oportunidad para brillar!")
+      setSource("fallback")
     } finally {
       setLoading(false)
     }
@@ -57,7 +63,8 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
     if (moods.length > 0) {
       generateQuote()
     }
-  }, [moods])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moods.length, moods[0]?.id ?? ''])
 
   if (moods.length === 0) {
     return (
@@ -83,7 +90,7 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
                 Frase del día
               </span>
             </div>
-            
+
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -99,6 +106,7 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
                     Basado en tu estado actual: {context.toLowerCase()}
                   </p>
                 )}
+                <AiSourceBadge source={source} cachedAt={cachedAt} />
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -106,7 +114,7 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
               </p>
             )}
           </div>
-          
+
           <Button
             variant="ghost"
             size="sm"

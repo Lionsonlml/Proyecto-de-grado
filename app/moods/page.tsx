@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { fetchWithCache, invalidateCache } from "@/lib/client-cache"
 import { MoodTracker } from "@/components/mood-tracker"
 import { MoodHistory } from "@/components/mood-history"
 import type { Mood } from "@/lib/types"
@@ -9,12 +10,14 @@ import { AppLayout } from "@/components/app-layout"
 export default function MoodsPage() {
   const [moods, setMoods] = useState<Mood[]>([])
 
-  const loadMoods = async () => {
+  const loadMoods = async (invalidate = false) => {
     try {
-      const response = await fetch("/api/moods")
-      if (!response.ok) return
-      const data = await response.json()
-      
+      if (invalidate) {
+        invalidateCache("/api/moods")
+        invalidateCache("/api/user/data") // también invalidar caché del dashboard
+      }
+      const data = await fetchWithCache<{ moods: any[] }>("/api/moods")
+
       // Convertir moods de BD al formato de Mood
       const convertedMoods: Mood[] = (data.moods || []).map((m: any) => ({
         id: String(m.id),
@@ -58,8 +61,8 @@ export default function MoodsPage() {
           notes: moodData.notes,
         }),
       })
-      
-      await loadMoods()
+
+      await loadMoods(true)
     } catch (error) {
       console.error("Error guardando mood:", error)
     }

@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const limit = Number.parseInt(searchParams.get("limit") || "20")
+    const type = searchParams.get("type") || undefined
 
-    const insights = await getSecureUserInsights(user.id, user.id, limit, request)
+    const insights = await getSecureUserInsights(user.id, user.id, limit, request, type)
 
     return NextResponse.json({ success: true, insights })
   } catch (error) {

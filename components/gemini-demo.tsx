@@ -4,10 +4,13 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Brain, Loader2 } from "lucide-react"
+import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 
 export function GeminiDemo() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const [source, setSource] = useState<AiSource>("gemini")
+  const [cachedAt, setCachedAt] = useState<string | undefined>()
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -24,9 +27,9 @@ export function GeminiDemo() {
       }
 
       const data = await response.json()
-      console.log("GeminiDemo data:", data)
-
       setResult(data)
+      setSource(data.source ?? "gemini")
+      setCachedAt(data.cachedAt)
     } catch (error) {
       console.error("Error:", error)
       setResult({ error: error instanceof Error ? error.message : "Error desconocido" })
@@ -58,6 +61,7 @@ export function GeminiDemo() {
 
         {result && (
           <div className="space-y-2">
+            {!result.error && <AiSourceBadge source={source} cachedAt={cachedAt} />}
             {result.error ? (
               <div className="p-4 bg-destructive/10 text-destructive rounded-lg text-sm">{result.error}</div>
             ) : (
