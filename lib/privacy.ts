@@ -1,5 +1,5 @@
 import { getDb } from './db'
-import { encryptSensitiveData, decryptSensitiveData } from './encryption'
+import { encryptSensitiveData, decryptSensitiveData, encryptField, decryptField, decryptTaskFullData, decryptMoodFullData, decryptInsightData } from './encryption'
 
 export interface UserPreferences {
   id?: number
@@ -95,16 +95,16 @@ export async function recordConsent(consent: ConsentRecord): Promise<void> {
   const db = getDb()
   
   await db.execute({
-    sql: `INSERT INTO consents 
-      (user_id, scope, accepted, version, ip_address, user_agent) 
+    sql: `INSERT INTO consents
+      (user_id, scope, accepted, version, ip_address, user_agent)
       VALUES (?, ?, ?, ?, ?, ?)`,
     args: [
       consent.user_id,
       consent.scope,
       consent.accepted,
       consent.version,
-      consent.ip_address || null,
-      consent.user_agent || null
+      consent.ip_address ? encryptField(consent.ip_address) : null,
+      consent.user_agent ? encryptField(consent.user_agent) : null,
     ],
   })
 }
@@ -124,8 +124,8 @@ export async function getConsentHistory(userId: number): Promise<ConsentRecord[]
     accepted: Boolean(row.accepted),
     version: row.version as string,
     accepted_at: row.accepted_at as string,
-    ip_address: row.ip_address as string,
-    user_agent: row.user_agent as string,
+    ip_address: row.ip_address ? (decryptField(row.ip_address as string) ?? (row.ip_address as string)) : undefined,
+    user_agent: row.user_agent ? (decryptField(row.user_agent as string) ?? (row.user_agent as string)) : undefined,
   }))
 }
 
@@ -150,6 +150,12 @@ export async function exportUserData(userId: number): Promise<any> {
     sql: "SELECT id, email, name, created_at FROM users WHERE id = ?",
     args: [userId],
   })
+
+  const rawUser = userResult.rows[0]
+  const exportedUser = rawUser ? {
+    ...rawUser,
+    name: decryptField(rawUser.name as string) ?? (rawUser.name as string),
+  } : null
   
   // Obtener tareas
   const tasksResult = await db.execute({
@@ -181,39 +187,46 @@ export async function exportUserData(userId: number): Promise<any> {
     args: [userId],
   })
   
-  // Procesar moods para descifrar notas
-  const processedMoods = moodsResult.rows.map(mood => {
-    const moodData = { ...mood }
-    if (moodData.notes && typeof moodData.notes === 'string') {
-      try {
-        moodData.notes = decryptSensitiveData(moodData.notes)
-      } catch (error) {
-        moodData.notes = '[Datos no disponibles]'
-      }
+  // Procesar tasks — descifrar todos los campos
+  const processedTasks = tasksResult.rows.map(row =>
+    decryptTaskFullData(row as Record<string, any>)
+  )
+
+  // Procesar moods — descifrar todos los campos
+  const processedMoods = moodsResult.rows.map(row =>
+    decryptMoodFullData(row as Record<string, any>)
+  )
+
+  // Procesar insights — descifrar todos los campos incluido analysis_type
+  const processedInsights = insightsResult.rows.map(row => {
+    const decrypted = decryptInsightData({
+      prompt: row.prompt as string,
+      response: row.response as string,
+      metadata: row.metadata as string | null,
+    })
+    return {
+      ...row,
+      prompt: decrypted.prompt,
+      response: decrypted.response,
+      metadata: decrypted.metadata,
+      analysis_type: decryptField(row.analysis_type as string) ?? (row.analysis_type as string) ?? '',
     }
-    return moodData
   })
-  
-  // Procesar insights para descifrar metadatos
-  const processedInsights = insightsResult.rows.map(insight => {
-    const insightData = { ...insight }
-    if (insightData.metadata && typeof insightData.metadata === 'string') {
-      try {
-        insightData.metadata = decryptSensitiveData(insightData.metadata)
-      } catch (error) {
-        insightData.metadata = '[Datos no disponibles]'
-      }
-    }
-    return insightData
-  })
-  
+
+  // Procesar consents — descifrar ip/ua
+  const processedConsents = consentsResult.rows.map(row => ({
+    ...row,
+    ip_address: row.ip_address ? (decryptField(row.ip_address as string) ?? (row.ip_address as string)) : null,
+    user_agent: row.user_agent ? (decryptField(row.user_agent as string) ?? (row.user_agent as string)) : null,
+  }))
+
   return {
-    user: userResult.rows[0],
-    tasks: tasksResult.rows,
+    user: exportedUser,
+    tasks: processedTasks,
     moods: processedMoods,
     insights: processedInsights,
     preferences: preferencesResult.rows[0] || null,
-    consents: consentsResult.rows,
+    consents: processedConsents,
     exported_at: new Date().toISOString(),
   }
 }

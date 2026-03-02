@@ -1,4 +1,5 @@
 import { getDb } from "./db"
+import { encryptField, decryptField } from "./encryption"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -38,8 +39,9 @@ export async function getCached(userId: number, key: string): Promise<CachedEntr
 
     if (result.rows.length === 0) return null
 
+    const rawResponse = result.rows[0].response as string
     return {
-      response: result.rows[0].response as string,
+      response: decryptField(rawResponse) ?? rawResponse,
       cachedAt: result.rows[0].created_at as string,
     }
   } catch {
@@ -68,7 +70,7 @@ export async function setCached(
 
     await db.execute({
       sql: "INSERT INTO ai_cache (user_id, cache_key, response, expires_at) VALUES (?, ?, ?, ?)",
-      args: [userId, key, response, expiresAt],
+      args: [userId, key, encryptField(response), expiresAt],
     })
   } catch (err) {
     console.error("[AI Cache] Error escribiendo caché:", err)

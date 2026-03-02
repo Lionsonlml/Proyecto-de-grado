@@ -185,6 +185,89 @@ export function isEncrypted(data: string): boolean {
   return true
 }
 
+// ─── Helpers genéricos ────────────────────────────────────────────────────────
+
+export function encryptField(value: string | number | boolean | null | undefined): string | null {
+  if (value === null || value === undefined) return null
+  return encryptSensitiveData(String(value))
+}
+
+export function decryptField(encrypted: string | null | undefined): string | null {
+  if (encrypted === null || encrypted === undefined) return null
+  return decryptSensitiveData(encrypted)
+}
+
+// ─── Funciones compuestas completas para tasks ───────────────────────────────
+
+export function encryptTaskFullData(taskData: Record<string, any>): Record<string, any> {
+  const result = { ...taskData }
+  const fieldsToEncrypt = [
+    'title', 'description', 'tags',
+    'category', 'priority', 'status',
+    'duration', 'completed', 'hour',
+    'date', 'due_date', 'started_at',
+    'time_elapsed', 'completed_at',
+  ]
+  for (const field of fieldsToEncrypt) {
+    if (result[field] !== undefined && result[field] !== null) {
+      result[field] = encryptField(result[field])
+    }
+  }
+  return result
+}
+
+export function decryptTaskFullData(row: Record<string, any>): Record<string, any> {
+  const dec = (v: any) => decryptField(v)
+  return {
+    ...row,
+    title: dec(row.title) ?? '',
+    description: row.description ? dec(row.description) : null,
+    tags: row.tags ? dec(row.tags) : null,
+    category: dec(row.category) ?? 'otro',
+    priority: dec(row.priority) ?? 'media',
+    status: dec(row.status) ?? 'pendiente',
+    duration: row.duration != null ? (parseInt(dec(row.duration) ?? '0', 10) || 0) : null,
+    completed: (() => { const v = dec(row.completed); return v === '1' || v === 'true' ? 1 : 0 })(),
+    hour: row.hour != null ? (parseInt(dec(row.hour) ?? '0', 10) || 0) : null,
+    date: dec(row.date) ?? null,
+    due_date: row.due_date ? dec(row.due_date) : null,
+    started_at: row.started_at ? dec(row.started_at) : null,
+    time_elapsed: row.time_elapsed != null ? (parseInt(dec(row.time_elapsed) ?? '0', 10) || 0) : null,
+    completed_at: row.completed_at ? dec(row.completed_at) : null,
+  }
+}
+
+// ─── Funciones compuestas completas para moods ───────────────────────────────
+
+export function encryptMoodFullData(moodData: Record<string, any>): Record<string, any> {
+  const result = { ...moodData }
+  const fieldsToEncrypt = [
+    'notes',
+    'energy', 'focus', 'stress',
+    'type', 'hour', 'date',
+  ]
+  for (const field of fieldsToEncrypt) {
+    if (result[field] !== undefined && result[field] !== null) {
+      result[field] = encryptField(result[field])
+    }
+  }
+  return result
+}
+
+export function decryptMoodFullData(row: Record<string, any>): Record<string, any> {
+  const dec = (v: any) => decryptField(v)
+  return {
+    ...row,
+    notes: row.notes ? dec(row.notes) : null,
+    energy: parseFloat(dec(row.energy) ?? '0') || 0,
+    focus: parseFloat(dec(row.focus) ?? '0') || 0,
+    stress: parseFloat(dec(row.stress) ?? '0') || 0,
+    type: dec(row.type) ?? null,
+    hour: row.hour != null ? (parseInt(dec(row.hour) ?? '0', 10) || 0) : null,
+    date: dec(row.date) ?? null,
+  }
+}
+
 // Función para limpiar datos sensibles de un objeto
 export function sanitizeSensitiveData(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj
