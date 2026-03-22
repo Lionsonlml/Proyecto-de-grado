@@ -4,11 +4,12 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Task } from "@/lib/types"
-import { CheckCircle2, Circle, Clock, Edit, Trash2, Play, Pause, Lightbulb, ChevronDown } from "lucide-react"
+import { CheckCircle2, Circle, Clock, Edit, Trash2, Play, Pause, Lightbulb, Timer, Repeat, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
+import { PomodoroTimer } from "@/components/pomodoro-timer"
 
 interface TaskListProps {
   tasks: Task[]
@@ -59,12 +60,10 @@ function TaskTimer({ task, onResetTimer, resetTasks }: { task: Task, onResetTime
     let baseElapsed: number
 
     if (resetTasks.has(task.id)) {
-      // Timer reseteado: empezar desde cero y persistir
       startTime = Date.now()
       baseElapsed = 0
       localStorage.setItem(`tw_timer_${task.id}`, JSON.stringify({ startTime, baseElapsed }))
     } else {
-      // Intentar leer desde localStorage
       const stored = localStorage.getItem(`tw_timer_${task.id}`)
       if (stored) {
         try {
@@ -77,7 +76,6 @@ function TaskTimer({ task, onResetTimer, resetTasks }: { task: Task, onResetTime
           localStorage.setItem(`tw_timer_${task.id}`, JSON.stringify({ startTime, baseElapsed }))
         }
       } else if (task.startedAt) {
-        // Sin localStorage: usar startedAt de la tarea y persistir
         startTime = new Date(task.startedAt).getTime()
         baseElapsed = task.timeElapsed || 0
         localStorage.setItem(`tw_timer_${task.id}`, JSON.stringify({ startTime, baseElapsed }))
@@ -183,7 +181,6 @@ function TaskAdvice({ task }: { task: Task }) {
 
     setLoading(true)
     try {
-      // Extraer ID numérico (quitar prefijo "db-" si existe)
       const numericId = task.id.replace(/^db-/, "")
       const response = await fetch("/api/gemini/advice", {
         method: "POST",
@@ -233,9 +230,14 @@ function TaskAdvice({ task }: { task: Task }) {
   )
 }
 
+const priorityOrder: Record<string, number> = { urgente: 0, alta: 1, media: 2, baja: 3 }
+
 export function TaskList({ tasks, onEdit, onDelete, onStatusChange }: TaskListProps) {
   const [filter, setFilter] = useState<"todas" | "pendiente" | "en-progreso" | "completada">("todas")
+  const [sortBy, setSortBy] = useState<'default' | 'dueDate' | 'priority' | 'estimatedMinutes' | 'category'>('default')
   const [resetTasks, setResetTasks] = useState<Set<string>>(new Set())
+  const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, Task["status"]>>({})
+  const [activePomodoroTaskId, setActivePomodoroTaskId] = useState<string | null>(null)
 
   const handleResetTimer = async (taskId: string) => {
     try {
@@ -248,7 +250,6 @@ export function TaskList({ tasks, onEdit, onDelete, onStatusChange }: TaskListPr
           time_elapsed: 0,
         }),
       })
-      // Marcar tarea como reseteada para actualizar el timer localmente
       setResetTasks(prev => new Set([...prev, taskId]))
       if (process.env.NODE_ENV !== "production") {
         console.log("Timer reseteado para tarea:", taskId)
@@ -258,49 +259,105 @@ export function TaskList({ tasks, onEdit, onDelete, onStatusChange }: TaskListPr
     }
   }
 
+  const handleStatusChangeOptimistic = (taskId: string, newStatus: Task["status"]) => {
+    // Actualizar optimistamente primero
+    setOptimisticStatuses(prev => ({ ...prev, [taskId]: newStatus }))
+    // Luego propagar al padre (que hace la llamada API)
+    onStatusChange(taskId, newStatus)
+  }
+
+  const handlePomodoroSessionComplete = async (taskId: string, sessions: number) => {
+    try {
+      await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId, pomodoro_sessions: sessions }),
+      })
+    } catch {
+      // ignorar
+    }
+  }
+
+  const getEffectiveStatus = (task: Task): Task["status"] => {
+    return optimisticStatuses[task.id] ?? task.status
+  }
+
   const filteredTasks = tasks.filter((task) => {
+    const effectiveStatus = getEffectiveStatus(task)
     if (filter === "todas") return true
-    return task.status === filter
+    return effectiveStatus === filter
   })
 
   const sortedTasks = [...filteredTasks].sort((a, b) => {
-    // Primero por estado (pendientes primero)
-    const statusOrder = { pendiente: 0, "en-progreso": 1, completada: 2, cancelada: 3 }
-    if (statusOrder[a.status] !== statusOrder[b.status]) {
-      return statusOrder[a.status] - statusOrder[b.status]
+    if (sortBy === 'default') {
+      const statusOrder: Record<string, number> = { pendiente: 0, "en-progreso": 1, completada: 2, cancelada: 3 }
+      const sa = getEffectiveStatus(a)
+      const sb = getEffectiveStatus(b)
+      if (statusOrder[sa] !== statusOrder[sb]) return statusOrder[sa] - statusOrder[sb]
+      return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
     }
-    // Luego por prioridad
-    const priorityOrder = { urgente: 0, alta: 1, media: 2, baja: 3 }
-    return priorityOrder[a.priority] - priorityOrder[b.priority]
+    if (sortBy === 'priority') {
+      return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
+    }
+    if (sortBy === 'dueDate') {
+      if (!a.dueDate && !b.dueDate) return 0
+      if (!a.dueDate) return 1
+      if (!b.dueDate) return -1
+      return a.dueDate.localeCompare(b.dueDate)
+    }
+    if (sortBy === 'estimatedMinutes') {
+      return (a.estimatedMinutes || 0) - (b.estimatedMinutes || 0)
+    }
+    if (sortBy === 'category') {
+      return a.category.localeCompare(b.category)
+    }
+    return 0
   })
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 flex-wrap">
-        <Button variant={filter === "todas" ? "default" : "outline"} size="sm" onClick={() => setFilter("todas")}>
-          Todas ({tasks.length})
-        </Button>
-        <Button
-          variant={filter === "pendiente" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setFilter("pendiente")}
-        >
-          Pendientes ({tasks.filter((t) => t.status === "pendiente").length})
-        </Button>
-        <Button
-          variant={filter === "en-progreso" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setFilter("en-progreso")}
-        >
-          En Progreso ({tasks.filter((t) => t.status === "en-progreso").length})
-        </Button>
-        <Button
-          variant={filter === "completada" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setFilter("completada")}
-        >
-          Completadas ({tasks.filter((t) => t.status === "completada").length})
-        </Button>
+      {/* Filtros y ordenamiento */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2 flex-wrap flex-1">
+          <Button variant={filter === "todas" ? "default" : "outline"} size="sm" onClick={() => setFilter("todas")}>
+            Todas ({tasks.length})
+          </Button>
+          <Button
+            variant={filter === "pendiente" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("pendiente")}
+          >
+            Pendientes ({tasks.filter((t) => (optimisticStatuses[t.id] ?? t.status) === "pendiente").length})
+          </Button>
+          <Button
+            variant={filter === "en-progreso" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("en-progreso")}
+          >
+            En Progreso ({tasks.filter((t) => (optimisticStatuses[t.id] ?? t.status) === "en-progreso").length})
+          </Button>
+          <Button
+            variant={filter === "completada" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("completada")}
+          >
+            Completadas ({tasks.filter((t) => (optimisticStatuses[t.id] ?? t.status) === "completada").length})
+          </Button>
+        </div>
+        <div className="w-full sm:w-48">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+            <SelectTrigger className="h-9 text-sm">
+              <SelectValue placeholder="Ordenar por..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Por defecto</SelectItem>
+              <SelectItem value="priority">Prioridad</SelectItem>
+              <SelectItem value="dueDate">Fecha límite</SelectItem>
+              <SelectItem value="estimatedMinutes">Duración</SelectItem>
+              <SelectItem value="category">Categoría</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -311,103 +368,172 @@ export function TaskList({ tasks, onEdit, onDelete, onStatusChange }: TaskListPr
             </CardContent>
           </Card>
         ) : (
-          sortedTasks.map((task) => (
-            <Card
-              key={task.id}
-              className={cn(
-                "transition-all hover:shadow-md",
-                task.status === "completada" && "opacity-60",
-                task.status === "en-progreso" && "border-blue-500/50"
-              )}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 mt-1"
-                      onClick={() => onStatusChange(task.id, task.status === "completada" ? "pendiente" : "completada")}
-                    >
-                      {task.status === "completada" ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <Circle className="h-5 w-5" />
-                      )}
-                    </Button>
-                    <div className="flex-1">
-                      <CardTitle
-                        className={cn("text-lg", task.status === "completada" && "line-through text-muted-foreground")}
+          sortedTasks.map((task) => {
+            const effectiveStatus = getEffectiveStatus(task)
+            return (
+              <Card
+                key={task.id}
+                className={cn(
+                  "transition-all hover:shadow-md",
+                  effectiveStatus === "completada" && "opacity-60",
+                  effectiveStatus === "en-progreso" && "border-blue-500/50"
+                )}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 mt-1"
+                        onClick={() => handleStatusChangeOptimistic(task.id, effectiveStatus === "completada" ? "pendiente" : "completada")}
                       >
-                        {task.title}
-                      </CardTitle>
-                      {task.description && <CardDescription className="mt-1">{task.description}</CardDescription>}
+                        {effectiveStatus === "completada" ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <Circle className="h-5 w-5" />
+                        )}
+                      </Button>
+                      <div className="flex-1">
+                        <CardTitle
+                          className={cn("text-lg", effectiveStatus === "completada" && "line-through text-muted-foreground")}
+                        >
+                          {task.title}
+                        </CardTitle>
+                        {task.description && <CardDescription className="mt-1">{task.description}</CardDescription>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      {effectiveStatus === "pendiente" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleStatusChangeOptimistic(task.id, "en-progreso")}
+                          title="Iniciar tarea"
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {effectiveStatus === "en-progreso" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleStatusChangeOptimistic(task.id, "pendiente")}
+                          title="Pausar tarea"
+                        >
+                          <Pause className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {/* Botón Pomodoro */}
+                      {effectiveStatus !== "completada" && effectiveStatus !== "cancelada" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setActivePomodoroTaskId(activePomodoroTaskId === task.id ? null : task.id)}
+                          title="Iniciar Pomodoro"
+                          className={cn(activePomodoroTaskId === task.id && "text-primary")}
+                        >
+                          <Timer className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" onClick={() => onEdit(task)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(task.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    {task.status === "pendiente" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onStatusChange(task.id, "en-progreso")}
-                        title="Iniciar tarea"
-                      >
-                        <Play className="h-4 w-4" />
-                      </Button>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className={priorityColors[task.priority]}>{task.priority}</Badge>
+                    <Badge className={categoryColors[task.category]}>{task.category}</Badge>
+                    {task.estimatedMinutes && (
+                      <Badge variant="outline" className="gap-1">
+                        <Clock className="h-3 w-3" />
+                        {task.estimatedMinutes}min
+                      </Badge>
                     )}
-                    {task.status === "en-progreso" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onStatusChange(task.id, "pendiente")}
-                        title="Pausar tarea"
-                      >
-                        <Pause className="h-4 w-4" />
-                      </Button>
+                    {task.recurrence && task.recurrence !== 'none' && (
+                      <Badge variant="outline" className="gap-1">
+                        <Repeat className="h-3 w-3" />
+                        Recurrente
+                      </Badge>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(task)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDelete(task.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {task.isFixedTime && (
+                      <Badge variant="outline" className="gap-1">
+                        <Lock className="h-3 w-3" />
+                        Fija
+                      </Badge>
+                    )}
+                    {task.pomodoroSessions !== undefined && task.pomodoroSessions > 0 && (
+                      <Badge variant="outline" className="gap-1">
+                        <Timer className="h-3 w-3" />
+                        {task.pomodoroSessions}🍅
+                      </Badge>
+                    )}
+                    {task.tags?.map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0 space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <Badge className={priorityColors[task.priority]}>{task.priority}</Badge>
-                  <Badge className={categoryColors[task.category]}>{task.category}</Badge>
-                  {task.estimatedMinutes && (
-                    <Badge variant="outline" className="gap-1">
-                      <Clock className="h-3 w-3" />
-                      {task.estimatedMinutes}min
-                    </Badge>
+
+                  {/* Subtareas */}
+                  {task.subtasks && task.subtasks.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Subtareas: {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+                      </p>
+                      <div className="space-y-0.5">
+                        {task.subtasks.map((sub) => (
+                          <div key={sub.id} className="flex items-center gap-1.5 text-sm">
+                            {sub.completed
+                              ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                              : <Circle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            }
+                            <span className={cn(sub.completed && "line-through text-muted-foreground")}>{sub.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {task.tags?.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-                
-                {task.status === 'en-progreso' && <TaskTimer task={task} onResetTimer={handleResetTimer} resetTasks={resetTasks} />}
 
-                {task.dueDate && (
-                  <p className="text-sm text-muted-foreground">
-                    Vence: {new Date(task.dueDate).toLocaleDateString("es-ES")}
-                  </p>
-                )}
+                  {effectiveStatus === 'en-progreso' && (
+                    <TaskTimer
+                      task={{ ...task, status: effectiveStatus }}
+                      onResetTimer={handleResetTimer}
+                      resetTasks={resetTasks}
+                    />
+                  )}
 
-                {task.status !== "completada" && <TaskAdvice task={task} />}
-              </CardContent>
-            </Card>
-          ))
+                  {/* Pomodoro Timer */}
+                  {activePomodoroTaskId === task.id && (
+                    <PomodoroTimer
+                      taskId={task.id}
+                      taskTitle={task.title}
+                      onSessionComplete={(sessions) => handlePomodoroSessionComplete(task.id, sessions)}
+                      onClose={() => setActivePomodoroTaskId(null)}
+                    />
+                  )}
+
+                  {task.dueDate && (
+                    <p className="text-sm text-muted-foreground">
+                      Vence: {new Date(task.dueDate).toLocaleDateString("es-ES")}
+                    </p>
+                  )}
+
+                  {effectiveStatus !== "completada" && <TaskAdvice task={task} />}
+                </CardContent>
+              </Card>
+            )
+          })
         )}
       </div>
     </div>

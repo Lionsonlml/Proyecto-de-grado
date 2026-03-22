@@ -1,3 +1,9 @@
+export interface SubTask {
+  id: string
+  title: string
+  completed: boolean
+}
+
 export interface Task {
   id: string
   title: string
@@ -15,6 +21,12 @@ export interface Task {
   tags?: string[]
   startedAt?: string
   timeElapsed?: number
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'weekdays' | 'custom'
+  recurrenceDays?: number
+  recurrenceEnd?: string
+  isFixedTime?: boolean
+  subtasks?: SubTask[]
+  pomodoroSessions?: number
 }
 
 export interface Mood {

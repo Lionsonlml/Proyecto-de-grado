@@ -99,7 +99,15 @@ export async function POST(request: NextRequest) {
       ? `~${peakHour.hour}:00h (score energía+foco: ${peakHour.score.toFixed(1)}/10)`
       : "no determinada"
 
-    const tasksSummary = pendingTasks
+    const fixedTasks = pendingTasks.filter((t: any) => t.is_fixed_time === 1 || t.is_fixed_time === true)
+    const flexTasks = pendingTasks.filter((t: any) => !t.is_fixed_time)
+
+    const fixedSummary = fixedTasks.length > 0
+      ? `\nTAREAS CON HORARIO FIJO (NO MOVER - incluir exactamente en su hora):\n` +
+        fixedTasks.map((t: any) => `  🔒 "${t.title ?? "(sin título)"}" — hora fija: ${t.hour || 9}:00 | ${t.duration || 60}min`).join('\n')
+      : ''
+
+    const tasksSummary = flexTasks
       .map((t: any, i: number) =>
         `  ${i + 1}. "${t.title ?? "(sin título)"}" — ${t.duration ?? 60}min | ${t.category ?? "?"} | ${t.priority ?? "normal"} prioridad`
       )
@@ -112,9 +120,9 @@ export async function POST(request: NextRequest) {
 
     const prompt = `VENTANA DE RENDIMIENTO PICO DEL USUARIO: ${peakInfo}
 Tareas pendientes: ${pendingTasks.length}${stressNote}
-
-LISTA EXACTA DE TAREAS A PROGRAMAR (usa los títulos literalmente, entre comillas):
-${tasksSummary}
+${fixedSummary}
+LISTA EXACTA DE TAREAS FLEXIBLES A PROGRAMAR (usa los títulos literalmente, entre comillas):
+${tasksSummary || "  (sin tareas flexibles)"}
 
 HISTORIAL DE ENERGÍA/FOCO (referencia):
 ${moodsSummary || "  • Sin datos de historial"}
@@ -123,8 +131,9 @@ Crea un horario para el día ${targetDate} entre las 08:00 y 22:00.
 REGLAS OBLIGATORIAS:
 1. El campo "task" debe ser el título EXACTO de una tarea de la lista anterior (sin modificar).
 2. NO agregues tareas que no estén en la lista. NO inventes actividades.
-3. Coloca tareas de mayor prioridad en la ventana de rendimiento pico (${peakInfo}).
-4. No excedas 90min de trabajo continuo sin descanso.
+3. Las tareas con 🔒 (hora fija) deben programarse EXACTAMENTE en su hora indicada, sin mover.
+4. Coloca tareas flexibles de mayor prioridad en la ventana de rendimiento pico (${peakInfo}).
+5. No excedas 90min de trabajo continuo sin descanso.
 
 Responde SOLO con este JSON (sin markdown):
 {

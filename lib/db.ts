@@ -204,18 +204,20 @@ async function initializeTables(db: Client): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_reset_tokens_hash ON password_reset_tokens(token_hash);
   `)
 
-  // Añadir columnas nuevas a users (con try/catch si ya existen)
-  const newUserColumns = [
-    "ALTER TABLE users ADD COLUMN google_id TEXT",
-    "ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'email'",
-    "ALTER TABLE users ADD COLUMN two_factor_enabled INTEGER DEFAULT 0",
-    "ALTER TABLE users ADD COLUMN avatar_url TEXT",
+  // ─── Migraciones: nuevas columnas tasks (idempotentes via try/catch) ──────────
+  const taskMigrations = [
+    `ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT 'none'`,
+    `ALTER TABLE tasks ADD COLUMN recurrence_days INTEGER DEFAULT 0`,
+    `ALTER TABLE tasks ADD COLUMN recurrence_end TEXT`,
+    `ALTER TABLE tasks ADD COLUMN is_fixed_time INTEGER DEFAULT 0`,
+    `ALTER TABLE tasks ADD COLUMN subtasks TEXT`,
+    `ALTER TABLE tasks ADD COLUMN pomodoro_sessions INTEGER DEFAULT 0`,
   ]
-  for (const sql of newUserColumns) {
+  for (const sql of taskMigrations) {
     try {
       await db.execute(sql)
     } catch {
-      // columna ya existe — ignorar
+      // Columna ya existe — ignorar
     }
   }
 
@@ -224,6 +226,58 @@ async function initializeTables(db: Client): Promise<void> {
   }
 
   await initializeSeedData(db)
+}
+
+// ─── Recurrencia ──────────────────────────────────────────────────────────────
+
+export async function createRecurringNextTask(db: any, originalTask: any, userId: number) {
+  const today = new Date(originalTask.date || new Date())
+  let nextDate = new Date(today)
+
+  switch (originalTask.recurrence) {
+    case 'daily': nextDate.setDate(nextDate.getDate() + 1); break
+    case 'weekly': nextDate.setDate(nextDate.getDate() + 7); break
+    case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break
+    case 'weekdays':
+      nextDate.setDate(nextDate.getDate() + 1)
+      while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
+        nextDate.setDate(nextDate.getDate() + 1)
+      }
+      break
+    case 'custom': {
+      const days = originalTask.recurrence_days || 1
+      nextDate.setDate(nextDate.getDate() + days)
+      break
+    }
+    default: return null
+  }
+
+  const nextDateStr = nextDate.toISOString().split('T')[0]
+
+  if (originalTask.recurrence_end && nextDateStr > originalTask.recurrence_end) return null
+
+  await db.execute({
+    sql: `INSERT INTO tasks (user_id, title, description, category, priority, status, duration, completed, hour, date, due_date, tags, recurrence, recurrence_days, recurrence_end, is_fixed_time, subtasks)
+          VALUES (?, ?, ?, ?, ?, 'pendiente', ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      userId,
+      originalTask.title,
+      originalTask.description || null,
+      originalTask.category || 'personal',
+      originalTask.priority || 'media',
+      originalTask.duration || 60,
+      originalTask.hour || 9,
+      nextDateStr,
+      originalTask.due_date || null,
+      originalTask.tags || null,
+      originalTask.recurrence,
+      originalTask.recurrence_days || 0,
+      originalTask.recurrence_end || null,
+      originalTask.is_fixed_time || 0,
+      originalTask.subtasks || null,
+    ],
+  })
+  return nextDateStr
 }
 
 // ─── Helpers de Fecha ─────────────────────────────────────────────────────────
