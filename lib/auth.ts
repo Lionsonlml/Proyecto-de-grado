@@ -1,5 +1,7 @@
 import { SignJWT, jwtVerify } from "jose"
 import { compare, hash } from "bcryptjs"
+import { createHash } from "crypto"
+import { type NextRequest } from "next/server"
 import { getDb } from "./db"
 import { encryptField, decryptField } from "./encryption"
 
@@ -23,8 +25,28 @@ export async function createToken(payload: UserPayload): Promise<string> {
   return await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("30d")
     .sign(JWT_SECRET)
+}
+
+/** SHA-256 de un token (para guardar en BD sin exponer el valor raw) */
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex")
+}
+
+/**
+ * Lee el token de autenticación desde la cookie `auth-token`
+ * O desde el header `Authorization: Bearer <token>` (para Capacitor).
+ */
+export function readAuthToken(request: NextRequest): string | null {
+  const cookie = request.cookies.get("auth-token")?.value
+  if (cookie) return cookie
+
+  const authHeader = request.headers.get("authorization")
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7)
+  }
+  return null
 }
 
 export async function verifyToken(token: string): Promise<UserPayload | null> {

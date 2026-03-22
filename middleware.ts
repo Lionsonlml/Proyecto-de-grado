@@ -4,7 +4,7 @@ import { jwtVerify } from "jose"
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key-change-in-production")
 
-const publicPaths = ["/login", "/register"]
+const publicPaths = ["/login", "/register", "/2fa", "/forgot-password", "/reset-password"]
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

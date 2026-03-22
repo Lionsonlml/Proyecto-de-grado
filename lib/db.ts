@@ -168,6 +168,26 @@ async function initializeTables(db: Client): Promise<void> {
       FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS two_factor_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      code TEXT NOT NULL,
+      temp_token_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER DEFAULT 0,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_moods_user_date ON moods(user_id, date);
@@ -180,7 +200,24 @@ async function initializeTables(db: Client): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles(user_id);
     CREATE INDEX IF NOT EXISTS idx_data_access_logs_user ON data_access_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_data_access_logs_accessed ON data_access_logs(accessed_at);
+    CREATE INDEX IF NOT EXISTS idx_2fa_codes_hash ON two_factor_codes(temp_token_hash);
+    CREATE INDEX IF NOT EXISTS idx_reset_tokens_hash ON password_reset_tokens(token_hash);
   `)
+
+  // Añadir columnas nuevas a users (con try/catch si ya existen)
+  const newUserColumns = [
+    "ALTER TABLE users ADD COLUMN google_id TEXT",
+    "ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'email'",
+    "ALTER TABLE users ADD COLUMN two_factor_enabled INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN avatar_url TEXT",
+  ]
+  for (const sql of newUserColumns) {
+    try {
+      await db.execute(sql)
+    } catch {
+      // columna ya existe — ignorar
+    }
+  }
 
   if (process.env.NODE_ENV !== "production") {
     console.log("[DB] Tablas listas")
@@ -491,6 +528,133 @@ export async function initializeSeedData(db?: Client): Promise<void> {
   if (process.env.NODE_ENV !== "production") {
     console.log(`[DB] Seed completo: ${allTasks.length} tareas, ${allMoods.length} moods para 4 perfiles`)
   }
+}
+
+// ─── Funciones de usuario (Google + 2FA) ──────────────────────────────────────
+
+export async function getUserByGoogleId(googleIdEncrypted: string) {
+  const db = getDb()
+  const result = await db.execute({
+    sql: "SELECT * FROM users WHERE google_id = ?",
+    args: [googleIdEncrypted],
+  })
+  return result.rows[0] ?? null
+}
+
+export async function updateUserGoogleId(userId: number, googleIdEncrypted: string, avatarUrl: string) {
+  const db = getDb()
+  await db.execute({
+    sql: "UPDATE users SET google_id = ?, auth_provider = 'both', avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    args: [googleIdEncrypted, avatarUrl, userId],
+  })
+}
+
+export async function createGoogleUser(
+  email: string,
+  nameEncrypted: string,
+  googleIdEncrypted: string,
+  avatarUrl: string,
+): Promise<number> {
+  const db = getDb()
+  const result = await db.execute({
+    sql: "INSERT INTO users (email, password, name, google_id, auth_provider, avatar_url) VALUES (?, ?, ?, ?, 'google', ?) RETURNING id",
+    args: [email, "", nameEncrypted, googleIdEncrypted, avatarUrl],
+  })
+  return result.rows[0].id as number
+}
+
+export async function updateUserPassword(userId: number, hashedPassword: string) {
+  const db = getDb()
+  await db.execute({
+    sql: "UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    args: [hashedPassword, userId],
+  })
+}
+
+export async function setTwoFactorEnabled(userId: number, enabled: boolean) {
+  const db = getDb()
+  await db.execute({
+    sql: "UPDATE users SET two_factor_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    args: [enabled ? 1 : 0, userId],
+  })
+}
+
+export async function getTwoFactorEnabled(userId: number): Promise<boolean> {
+  const db = getDb()
+  const result = await db.execute({
+    sql: "SELECT two_factor_enabled FROM users WHERE id = ?",
+    args: [userId],
+  })
+  return (result.rows[0]?.two_factor_enabled as number) === 1
+}
+
+// ─── Funciones de 2FA ─────────────────────────────────────────────────────────
+
+export async function saveTwoFactorCode(
+  userId: number,
+  codeEncrypted: string,
+  tempTokenHash: string,
+  expiresAt: string,
+) {
+  const db = getDb()
+  // Limpiar códigos anteriores del usuario
+  await db.execute({
+    sql: "DELETE FROM two_factor_codes WHERE user_id = ?",
+    args: [userId],
+  })
+  await db.execute({
+    sql: "INSERT INTO two_factor_codes (user_id, code, temp_token_hash, expires_at) VALUES (?, ?, ?, ?)",
+    args: [userId, codeEncrypted, tempTokenHash, expiresAt],
+  })
+}
+
+export async function getTwoFactorCode(tempTokenHash: string) {
+  const db = getDb()
+  const result = await db.execute({
+    sql: "SELECT * FROM two_factor_codes WHERE temp_token_hash = ? AND used = 0",
+    args: [tempTokenHash],
+  })
+  return result.rows[0] ?? null
+}
+
+export async function markTwoFactorCodeUsed(id: number) {
+  const db = getDb()
+  await db.execute({
+    sql: "UPDATE two_factor_codes SET used = 1 WHERE id = ?",
+    args: [id],
+  })
+}
+
+// ─── Funciones de recuperación de contraseña ─────────────────────────────────
+
+export async function savePasswordResetToken(userId: number, tokenHash: string, expiresAt: string) {
+  const db = getDb()
+  // Invalidar tokens anteriores
+  await db.execute({
+    sql: "UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0",
+    args: [userId],
+  })
+  await db.execute({
+    sql: "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+    args: [userId, tokenHash, expiresAt],
+  })
+}
+
+export async function getPasswordResetToken(tokenHash: string) {
+  const db = getDb()
+  const result = await db.execute({
+    sql: "SELECT * FROM password_reset_tokens WHERE token_hash = ? AND used = 0",
+    args: [tokenHash],
+  })
+  return result.rows[0] ?? null
+}
+
+export async function markPasswordResetTokenUsed(id: number) {
+  const db = getDb()
+  await db.execute({
+    sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+    args: [id],
+  })
 }
 
 export default getDb

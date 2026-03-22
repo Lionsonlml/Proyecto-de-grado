@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from './auth'
+import { verifyToken, readAuthToken } from './auth'
 import { canUserAccessData } from './secure-data'
 import { logDataAccess } from './roles'
 
 // Middleware para verificar autenticación y permisos
 export async function requireAuth(request: NextRequest): Promise<{ user: any; error?: NextResponse }> {
-  const token = request.cookies.get('auth-token')?.value
-  
+  const token = readAuthToken(request)
+
   if (!token) {
-    return { 
-      user: null, 
-      error: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) 
+    return {
+      user: null,
+      error: NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
   }
 
   const user = await verifyToken(token)
   if (!user) {
-    return { 
-      user: null, 
-      error: NextResponse.json({ error: 'Token inválido' }, { status: 401 }) 
+    return {
+      user: null,
+      error: NextResponse.json({ error: 'Token inválido' }, { status: 401 })
     }
   }
 
