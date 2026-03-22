@@ -1,12 +1,18 @@
 import { getDb } from './db'
 import { verifyToken } from './auth'
-import { 
-  encryptTaskData, 
-  decryptTaskData, 
-  encryptMoodNotes, 
+import {
+  encryptTaskData,
+  decryptTaskData,
+  encryptMoodNotes,
   decryptMoodNotes,
   encryptInsightData,
-  decryptInsightData
+  decryptInsightData,
+  encryptTaskFullData,
+  decryptTaskFullData,
+  encryptMoodFullData,
+  decryptMoodFullData,
+  encryptField,
+  decryptField,
 } from './encryption'
 import { canAccessUserData, logDataAccess } from './roles'
 
@@ -56,21 +62,8 @@ export async function getSecureUserTasks(userId: number, targetUserId: number, d
     })
   }
   
-  // Descifrar datos sensibles
-  return result.rows.map(row => {
-    const decryptedData = decryptTaskData({
-      title: row.title as string,
-      description: row.description as string,
-      tags: row.tags as string,
-    })
-    
-    return {
-      ...row,
-      title: decryptedData.title,
-      description: decryptedData.description,
-      tags: decryptedData.tags,
-    }
-  })
+  // Descifrar todos los campos sensibles
+  return result.rows.map(row => decryptTaskFullData(row as Record<string, any>))
 }
 
 // Guardar tarea con cifrado automático
@@ -94,22 +87,22 @@ export async function saveSecureTask(userId: number, taskData: {
   }
 
   const db = getDb()
-  
-  // Cifrar datos sensibles
-  const encryptedData = encryptTaskData({
+
+  // Solo cifrar campos de texto libre sensibles
+  const enc = encryptTaskFullData({
     title: taskData.title,
     description: taskData.description || null,
     tags: taskData.tags || null,
   })
-  
+
   await db.execute({
-    sql: `INSERT INTO tasks 
-      (user_id, title, description, category, priority, status, duration, completed, hour, date, due_date, tags) 
+    sql: `INSERT INTO tasks
+      (user_id, title, description, category, priority, status, duration, completed, hour, date, due_date, tags)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       userId,
-      encryptedData.title,
-      encryptedData.description,
+      enc.title,
+      enc.description,
       taskData.category,
       taskData.priority,
       taskData.status,
@@ -118,7 +111,7 @@ export async function saveSecureTask(userId: number, taskData: {
       taskData.hour,
       taskData.date,
       taskData.due_date || null,
-      encryptedData.tags,
+      enc.tags,
     ],
   })
 }
@@ -136,6 +129,9 @@ export async function updateSecureTask(userId: number, taskId: number, taskData:
   date?: string
   due_date?: string
   tags?: string
+  started_at?: string
+  time_elapsed?: number
+  completed_at?: string
 }, request?: Request) {
   // Verificar permisos de acceso
   const hasAccess = await verifyUserAccess(userId, userId, 'update', 'tasks', request)
@@ -144,58 +140,84 @@ export async function updateSecureTask(userId: number, taskId: number, taskData:
   }
 
   const db = getDb()
-  
-  // Construir query dinámicamente
+
+  // Construir query dinámicamente cifrando todos los campos sensibles
   const updates: string[] = []
   const args: any[] = []
-  
-  if (taskData.title !== undefined) { 
-    const encryptedTitle = encryptTaskData({ title: taskData.title, description: null, tags: null })
+
+  // Solo cifrar campos de texto libre sensibles
+  if (taskData.title !== undefined) {
     updates.push("title = ?")
-    args.push(encryptedTitle.title)
+    args.push(encryptField(taskData.title))
   }
-  if (taskData.description !== undefined) { 
-    const encryptedDesc = encryptTaskData({ title: '', description: taskData.description, tags: null })
+  if (taskData.description !== undefined) {
     updates.push("description = ?")
-    args.push(encryptedDesc.description)
+    args.push(taskData.description ? encryptField(taskData.description) : null)
   }
-  if (taskData.category !== undefined) { updates.push("category = ?"); args.push(taskData.category) }
-  if (taskData.priority !== undefined) { updates.push("priority = ?"); args.push(taskData.priority) }
+  if (taskData.tags !== undefined) {
+    updates.push("tags = ?")
+    args.push(taskData.tags ? encryptField(taskData.tags) : null)
+  }
+  // Campos no cifrados — guardar como valores planos
+  if (taskData.category !== undefined) {
+    updates.push("category = ?")
+    args.push(taskData.category)
+  }
+  if (taskData.priority !== undefined) {
+    updates.push("priority = ?")
+    args.push(taskData.priority)
+  }
   if (taskData.status !== undefined) {
     updates.push("status = ?")
     args.push(taskData.status)
-    // Actualizar completed basado en status
     const isCompleted = taskData.status === 'completada' ? 1 : 0
     updates.push("completed = ?")
     args.push(isCompleted)
-    
-    // Si cambia a en-progreso, registrar started_at
     if (taskData.status === 'en-progreso') {
-      updates.push("started_at = CURRENT_TIMESTAMP")
+      updates.push("started_at = ?")
+      args.push(new Date().toISOString())
     }
-    
-    // Si se completa, registrar completed_at
     if (taskData.status === 'completada') {
-      updates.push("completed_at = CURRENT_TIMESTAMP")
+      updates.push("completed_at = ?")
+      args.push(new Date().toISOString())
     }
   } else if (taskData.completed !== undefined) {
     updates.push("completed = ?")
     args.push(taskData.completed ? 1 : 0)
   }
-  if (taskData.duration !== undefined) { updates.push("duration = ?"); args.push(taskData.duration) }
-  if (taskData.hour !== undefined) { updates.push("hour = ?"); args.push(Math.max(0, Math.min(23, Number(taskData.hour)))) }
-  if (taskData.date !== undefined) { updates.push("date = ?"); args.push(taskData.date) }
-  if (taskData.due_date !== undefined) { updates.push("due_date = ?"); args.push(taskData.due_date) }
-  if (taskData.tags !== undefined) {
-    const encryptedTags = encryptTaskData({ title: '', description: null, tags: taskData.tags })
-    updates.push("tags = ?")
-    args.push(encryptedTags.tags)
+  if (taskData.duration !== undefined) {
+    updates.push("duration = ?")
+    args.push(taskData.duration)
   }
-  
+  if (taskData.hour !== undefined) {
+    updates.push("hour = ?")
+    args.push(Math.max(0, Math.min(23, Number(taskData.hour))))
+  }
+  if (taskData.date !== undefined) {
+    updates.push("date = ?")
+    args.push(taskData.date)
+  }
+  if (taskData.due_date !== undefined) {
+    updates.push("due_date = ?")
+    args.push(taskData.due_date)
+  }
+  if (taskData.started_at !== undefined) {
+    updates.push("started_at = ?")
+    args.push(taskData.started_at)
+  }
+  if (taskData.time_elapsed !== undefined) {
+    updates.push("time_elapsed = ?")
+    args.push(taskData.time_elapsed)
+  }
+  if (taskData.completed_at !== undefined) {
+    updates.push("completed_at = ?")
+    args.push(taskData.completed_at)
+  }
+
   updates.push("updated_at = CURRENT_TIMESTAMP")
-  
+
   args.push(taskId, userId)
-  
+
   await db.execute({
     sql: `UPDATE tasks SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
     args,
@@ -211,20 +233,7 @@ export async function updateSecureTask(userId: number, taskId: number, taskData:
     throw new Error('Tarea no encontrada')
   }
 
-  // Descifrar datos para devolver
-  const row = result.rows[0]
-  const decryptedData = decryptTaskData({
-    title: row.title as string,
-    description: row.description as string,
-    tags: row.tags as string,
-  })
-  
-  return {
-    ...row,
-    title: decryptedData.title,
-    description: decryptedData.description,
-    tags: decryptedData.tags,
-  }
+  return decryptTaskFullData(result.rows[0] as Record<string, any>)
 }
 
 // Eliminar tarea con logging de auditoría
@@ -276,11 +285,8 @@ export async function getSecureUserMoods(userId: number, targetUserId: number, d
     })
   }
   
-  // Descifrar notas sensibles
-  return result.rows.map(row => ({
-    ...row,
-    notes: row.notes ? decryptMoodNotes(row.notes) : null,
-  }))
+  // Descifrar todos los campos sensibles
+  return result.rows.map(row => decryptMoodFullData(row as Record<string, any>))
 }
 
 // Guardar mood con cifrado automático
@@ -300,21 +306,29 @@ export async function saveSecureMood(userId: number, moodData: {
   }
 
   const db = getDb()
-  
-  // Cifrar notas sensibles
-  const encryptedNotes = moodData.notes ? encryptMoodNotes(moodData.notes) : null
-  
+
+  // Cifrar todos los campos sensibles
+  const enc = encryptMoodFullData({
+    energy: moodData.energy,
+    focus: moodData.focus,
+    stress: moodData.stress,
+    type: moodData.type,
+    hour: moodData.hour,
+    date: moodData.date,
+    notes: moodData.notes || null,
+  })
+
   await db.execute({
     sql: "INSERT INTO moods (user_id, energy, focus, stress, type, hour, date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     args: [
       userId,
-      moodData.energy,
-      moodData.focus,
-      moodData.stress,
-      moodData.type,
-      moodData.hour,
-      moodData.date,
-      encryptedNotes,
+      enc.energy,
+      enc.focus,
+      enc.stress,
+      enc.type,
+      enc.hour,
+      enc.date,
+      enc.notes,
     ],
   })
 }
@@ -345,12 +359,13 @@ export async function getSecureUserInsights(userId: number, targetUserId: number
       response: row.response as string,
       metadata: row.metadata as string,
     })
-    
+
     return {
       ...row,
       prompt: decryptedData.prompt,
       response: decryptedData.response,
       metadata: decryptedData.metadata,
+      analysis_type: decryptField(row.analysis_type as string) ?? (row.analysis_type as string) ?? '',
     }
   })
 }
@@ -376,14 +391,14 @@ export async function saveSecureInsight(userId: number, insightData: {
     response: insightData.response,
     metadata: insightData.metadata || null,
   })
-  
+
   await db.execute({
     sql: "INSERT INTO ai_insights (user_id, prompt, response, analysis_type, metadata) VALUES (?, ?, ?, ?, ?)",
     args: [
       userId,
       encryptedData.prompt,
       encryptedData.response,
-      insightData.analysis_type,
+      encryptField(insightData.analysis_type),
       encryptedData.metadata,
     ],
   })
@@ -430,25 +445,21 @@ export async function getGeminiUserTasks(userId: number, targetUserId: number, d
     })
   }
   
-  // Descifrar campos sensibles antes de enviar a Gemini
+  // Descifrar todos los campos sensibles antes de enviar a Gemini
   return result.rows.map(row => {
-    const decrypted = decryptTaskData({
-      title: row.title as string,
-      description: row.description as string | null,
-      tags: row.tags as string | null,
-    })
+    const dec = decryptTaskFullData(row as Record<string, any>)
     return {
-      id: row.id,
-      title: decrypted.title,
-      description: decrypted.description,
-      category: row.category as string,
-      priority: row.priority as string,
-      status: row.status as string,
-      duration: row.duration as number,
-      completed: row.completed as number,
-      hour: row.hour as number,
-      date: row.date as string,
-      tags: decrypted.tags,
+      id: dec.id,
+      title: dec.title,
+      description: dec.description,
+      category: dec.category,
+      priority: dec.priority,
+      status: dec.status,
+      duration: dec.duration,
+      completed: dec.completed,
+      hour: dec.hour,
+      date: dec.date,
+      tags: dec.tags,
     }
   })
 }
@@ -475,15 +486,18 @@ export async function getGeminiUserMoods(userId: number, targetUserId: number, d
     })
   }
   
-  // Descifrar notes antes de enviar a Gemini
-  return result.rows.map(row => ({
-    id: row.id,
-    type: row.type as string,
-    hour: row.hour as number,
-    energy: row.energy as number,
-    focus: row.focus as number,
-    stress: row.stress as number,
-    date: row.date as string,
-    notes: decryptMoodNotes(row.notes as string | null),
-  }))
+  // Descifrar todos los campos sensibles antes de enviar a Gemini
+  return result.rows.map(row => {
+    const dec = decryptMoodFullData(row as Record<string, any>)
+    return {
+      id: dec.id,
+      type: dec.type,
+      hour: dec.hour,
+      energy: dec.energy,
+      focus: dec.focus,
+      stress: dec.stress,
+      date: dec.date,
+      notes: dec.notes,
+    }
+  })
 }

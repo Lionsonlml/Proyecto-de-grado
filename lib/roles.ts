@@ -1,4 +1,5 @@
 import { getDb } from './db'
+import { encryptField } from './encryption'
 
 export type UserRole = 'user' | 'admin' | 'moderator'
 
@@ -134,10 +135,17 @@ export async function logDataAccess(
   const db = getDb()
   
   await db.execute({
-    sql: `INSERT INTO data_access_logs 
-      (user_id, action, data_type, target_user_id, ip_address, user_agent, accessed_at) 
+    sql: `INSERT INTO data_access_logs
+      (user_id, action, data_type, target_user_id, ip_address, user_agent, accessed_at)
       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-    args: [userId, action, dataType, targetUserId || null, ipAddress || null, userAgent || null],
+    args: [
+      userId,
+      encryptField(action),
+      encryptField(dataType),
+      targetUserId || null,
+      ipAddress ? encryptField(ipAddress) : null,
+      userAgent ? encryptField(userAgent) : null,
+    ],
   })
 }
 

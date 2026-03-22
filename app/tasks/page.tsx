@@ -19,11 +19,10 @@ export default function TasksPage() {
     try {
       if (invalidate) {
         invalidateCache("/api/tasks")
-        invalidateCache("/api/user/data") // también invalidar caché del dashboard
+        invalidateCache("/api/user/data")
       }
       const data = await fetchWithCache<{ tasks: any[] }>("/api/tasks")
 
-      // Convertir tareas de BD al formato de Task
       const convertedTasks: Task[] = (data.tasks || []).map((t: any) => ({
         id: String(t.id),
         title: t.title,
@@ -40,8 +39,14 @@ export default function TasksPage() {
         startedAt: t.started_at,
         timeElapsed: t.time_elapsed || 0,
         completedAt: t.completed_at,
+        recurrence: t.recurrence || 'none',
+        recurrenceDays: t.recurrence_days || 0,
+        recurrenceEnd: t.recurrence_end || undefined,
+        isFixedTime: t.is_fixed_time === 1 || t.is_fixed_time === true,
+        subtasks: t.subtasks ? (() => { try { return JSON.parse(t.subtasks) } catch { return undefined } })() : undefined,
+        pomodoroSessions: t.pomodoro_sessions || 0,
       }))
-      
+
       setTasks(convertedTasks)
     } catch (error) {
       console.error("Error cargando tareas:", error)
@@ -57,7 +62,6 @@ export default function TasksPage() {
   const handleSubmit = async (taskData: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
     try {
       if (editingTask) {
-        // Actualizar
         const response = await fetch("/api/tasks", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -73,14 +77,18 @@ export default function TasksPage() {
             date: taskData.dueDate,
             due_date: taskData.dueDate,
             tags: taskData.tags,
+            recurrence: taskData.recurrence || 'none',
+            recurrence_days: taskData.recurrenceDays || 0,
+            recurrence_end: taskData.recurrenceEnd || null,
+            is_fixed_time: taskData.isFixedTime ? 1 : 0,
+            subtasks: taskData.subtasks || null,
           }),
         })
-        
+
         if (!response.ok) {
           throw new Error("Error al actualizar tarea")
         }
       } else {
-        // Crear
         const response = await fetch("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -95,17 +103,22 @@ export default function TasksPage() {
             date: taskData.dueDate || new Date().toISOString().split('T')[0],
             due_date: taskData.dueDate,
             tags: taskData.tags,
+            recurrence: taskData.recurrence || 'none',
+            recurrence_days: taskData.recurrenceDays || 0,
+            recurrence_end: taskData.recurrenceEnd || null,
+            is_fixed_time: taskData.isFixedTime ? 1 : 0,
+            subtasks: taskData.subtasks || null,
           }),
         })
-        
+
         if (!response.ok) {
           console.error("Error response:", await response.text())
           throw new Error("Error al crear tarea")
         }
-        
+
         console.log("✅ Tarea creada exitosamente")
       }
-      
+
       await loadTasks(true)
       setShowForm(false)
       setEditingTask(undefined)
@@ -122,7 +135,7 @@ export default function TasksPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("¿Estás seguro de eliminar esta tarea?")) return
-    
+
     try {
       await fetch(`/api/tasks?id=${id}`, { method: "DELETE" })
       await loadTasks(true)
@@ -132,32 +145,38 @@ export default function TasksPage() {
   }
 
   const handleStatusChange = async (id: string, status: Task["status"]) => {
+    // Actualizar estado local inmediatamente (optimistic UI ya lo hace en TaskList)
+    setTasks(prev =>
+      prev.map(t => t.id === id ? { ...t, status } : t)
+    )
+
     try {
-      const updateData: any = { 
-        id, 
+      const updateData: any = {
+        id,
         status,
         completed: status === "completada" ? 1 : 0,
       }
-      
-      // Si cambia a en-progreso, registrar started_at
+
       if (status === 'en-progreso') {
         updateData.started_at = new Date().toISOString()
         updateData.time_elapsed = 0
       }
-      
-      // Si se completa, registrar completed_at
+
       if (status === 'completada') {
         updateData.completed_at = new Date().toISOString()
       }
-      
+
       await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
       })
+      // Refrescar para obtener tarea recurrente creada, si aplica
       await loadTasks(true)
     } catch (error) {
       console.error("Error actualizando estado:", error)
+      // Revertir en caso de error
+      await loadTasks(true)
     }
   }
 

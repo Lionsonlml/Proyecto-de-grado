@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(\"/mnt/c/Program Files/nodejs/node.exe\":*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

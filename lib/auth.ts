@@ -1,6 +1,9 @@
 import { SignJWT, jwtVerify } from "jose"
 import { compare, hash } from "bcryptjs"
+import { createHash } from "crypto"
+import { type NextRequest } from "next/server"
 import { getDb } from "./db"
+import { encryptField, decryptField } from "./encryption"
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key-change-in-production")
 
@@ -22,8 +25,28 @@ export async function createToken(payload: UserPayload): Promise<string> {
   return await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("30d")
     .sign(JWT_SECRET)
+}
+
+/** SHA-256 de un token (para guardar en BD sin exponer el valor raw) */
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex")
+}
+
+/**
+ * Lee el token de autenticación desde la cookie `auth-token`
+ * O desde el header `Authorization: Bearer <token>` (para Capacitor).
+ */
+export function readAuthToken(request: NextRequest): string | null {
+  const cookie = request.cookies.get("auth-token")?.value
+  if (cookie) return cookie
+
+  const authHeader = request.headers.get("authorization")
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7)
+  }
+  return null
 }
 
 export async function verifyToken(token: string): Promise<UserPayload | null> {
@@ -49,7 +72,7 @@ export async function getUserByEmail(email: string) {
     id: row.id as number,
     email: row.email as string,
     password: row.password as string,
-    name: row.name as string,
+    name: decryptField(row.name as string) ?? (row.name as string),
   }
 }
 
@@ -61,12 +84,12 @@ export async function getUserById(id: number) {
   })
   
   if (result.rows.length === 0) return undefined
-  
+
   const row = result.rows[0]
   return {
     id: row.id as number,
     email: row.email as string,
-    name: row.name as string,
+    name: decryptField(row.name as string) ?? (row.name as string),
   }
 }
 
@@ -74,7 +97,7 @@ export async function createUser(email: string, hashedPassword: string, name: st
   const db = getDb()
   const result = await db.execute({
     sql: "INSERT INTO users (email, password, name) VALUES (?, ?, ?) RETURNING id",
-    args: [email, hashedPassword, name],
+    args: [email, hashedPassword, encryptField(name)],
   })
 
   return result.rows[0].id as number

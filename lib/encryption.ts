@@ -185,6 +185,105 @@ export function isEncrypted(data: string): boolean {
   return true
 }
 
+// ─── Helpers genéricos ────────────────────────────────────────────────────────
+
+export function encryptField(value: string | number | boolean | null | undefined): string | null {
+  if (value === null || value === undefined) return null
+  return encryptSensitiveData(String(value))
+}
+
+export function decryptField(encrypted: string | null | undefined): string | null {
+  if (encrypted === null || encrypted === undefined) return null
+  return decryptSensitiveData(encrypted)
+}
+
+// ─── Funciones compuestas completas para tasks ───────────────────────────────
+
+export function encryptTaskFullData(taskData: Record<string, any>): Record<string, any> {
+  const result = { ...taskData }
+  // Solo cifrar campos sensibles de texto libre
+  const fieldsToEncrypt = ['title', 'description', 'tags']
+  for (const field of fieldsToEncrypt) {
+    if (result[field] !== undefined && result[field] !== null) {
+      result[field] = encryptField(result[field])
+    }
+  }
+  return result
+}
+
+// Descifra un campo que puede estar cifrado (hex:hex) o ser texto/número plano
+function safeDecryptField(v: any): any {
+  if (v === null || v === undefined) return v
+  if (typeof v === 'string' && isEncrypted(v)) return decryptSensitiveData(v)
+  return v
+}
+
+export function decryptTaskFullData(row: Record<string, any>): Record<string, any> {
+  const decText = (v: any): string | null => {
+    if (v === null || v === undefined) return null
+    const result = safeDecryptField(v)
+    return result !== null && result !== undefined ? String(result) : null
+  }
+  const decInt = (v: any): number => {
+    if (v === null || v === undefined) return 0
+    const result = safeDecryptField(v)
+    return parseInt(String(result ?? '0'), 10) || 0
+  }
+  const decCompleted = (v: any): number => {
+    if (v === null || v === undefined) return 0
+    const result = safeDecryptField(v)
+    return result === 1 || result === '1' || result === true || result === 'true' ? 1 : 0
+  }
+  return {
+    ...row,
+    title: decText(row.title) ?? '',
+    description: row.description ? decText(row.description) : null,
+    tags: row.tags ? decText(row.tags) : null,
+    category: decText(row.category) ?? 'otro',
+    priority: decText(row.priority) ?? 'media',
+    status: decText(row.status) ?? 'pendiente',
+    duration: row.duration != null ? decInt(row.duration) : null,
+    completed: decCompleted(row.completed),
+    hour: row.hour != null ? decInt(row.hour) : null,
+    date: decText(row.date) ?? null,
+    due_date: row.due_date ? decText(row.due_date) : null,
+    started_at: row.started_at ? decText(row.started_at) : null,
+    time_elapsed: row.time_elapsed != null ? decInt(row.time_elapsed) : null,
+    completed_at: row.completed_at ? decText(row.completed_at) : null,
+  }
+}
+
+// ─── Funciones compuestas completas para moods ───────────────────────────────
+
+export function encryptMoodFullData(moodData: Record<string, any>): Record<string, any> {
+  const result = { ...moodData }
+  const fieldsToEncrypt = [
+    'notes',
+    'energy', 'focus', 'stress',
+    'type', 'hour', 'date',
+  ]
+  for (const field of fieldsToEncrypt) {
+    if (result[field] !== undefined && result[field] !== null) {
+      result[field] = encryptField(result[field])
+    }
+  }
+  return result
+}
+
+export function decryptMoodFullData(row: Record<string, any>): Record<string, any> {
+  const dec = (v: any) => decryptField(v)
+  return {
+    ...row,
+    notes: row.notes ? dec(row.notes) : null,
+    energy: parseFloat(dec(row.energy) ?? '0') || 0,
+    focus: parseFloat(dec(row.focus) ?? '0') || 0,
+    stress: parseFloat(dec(row.stress) ?? '0') || 0,
+    type: dec(row.type) ?? null,
+    hour: row.hour != null ? (parseInt(dec(row.hour) ?? '0', 10) || 0) : null,
+    date: dec(row.date) ?? null,
+  }
+}
+
 // Función para limpiar datos sensibles de un objeto
 export function sanitizeSensitiveData(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj
