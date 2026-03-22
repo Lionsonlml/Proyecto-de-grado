@@ -88,19 +88,11 @@ export async function saveSecureTask(userId: number, taskData: {
 
   const db = getDb()
 
-  // Cifrar todos los campos sensibles
+  // Solo cifrar campos de texto libre sensibles
   const enc = encryptTaskFullData({
     title: taskData.title,
     description: taskData.description || null,
     tags: taskData.tags || null,
-    category: taskData.category,
-    priority: taskData.priority,
-    status: taskData.status,
-    duration: taskData.duration,
-    completed: taskData.completed,
-    hour: taskData.hour,
-    date: taskData.date,
-    due_date: taskData.due_date || null,
   })
 
   await db.execute({
@@ -111,14 +103,14 @@ export async function saveSecureTask(userId: number, taskData: {
       userId,
       enc.title,
       enc.description,
-      enc.category,
-      enc.priority,
-      enc.status,
-      enc.duration,
-      enc.completed,
-      enc.hour,
-      enc.date,
-      enc.due_date,
+      taskData.category,
+      taskData.priority,
+      taskData.status,
+      taskData.duration,
+      taskData.completed,
+      taskData.hour,
+      taskData.date,
+      taskData.due_date || null,
       enc.tags,
     ],
   })
@@ -137,6 +129,9 @@ export async function updateSecureTask(userId: number, taskId: number, taskData:
   date?: string
   due_date?: string
   tags?: string
+  started_at?: string
+  time_elapsed?: number
+  completed_at?: string
 }, request?: Request) {
   // Verificar permisos de acceso
   const hasAccess = await verifyUserAccess(userId, userId, 'update', 'tasks', request)
@@ -150,64 +145,73 @@ export async function updateSecureTask(userId: number, taskId: number, taskData:
   const updates: string[] = []
   const args: any[] = []
 
+  // Solo cifrar campos de texto libre sensibles
   if (taskData.title !== undefined) {
     updates.push("title = ?")
     args.push(encryptField(taskData.title))
   }
   if (taskData.description !== undefined) {
     updates.push("description = ?")
-    args.push(encryptField(taskData.description))
-  }
-  if (taskData.category !== undefined) {
-    updates.push("category = ?")
-    args.push(encryptField(taskData.category))
-  }
-  if (taskData.priority !== undefined) {
-    updates.push("priority = ?")
-    args.push(encryptField(taskData.priority))
-  }
-  if (taskData.status !== undefined) {
-    updates.push("status = ?")
-    args.push(encryptField(taskData.status))
-    // Actualizar completed basado en status
-    const isCompleted = taskData.status === 'completada' ? 1 : 0
-    updates.push("completed = ?")
-    args.push(encryptField(isCompleted))
-
-    // Si cambia a en-progreso, registrar started_at cifrado
-    if (taskData.status === 'en-progreso') {
-      updates.push("started_at = ?")
-      args.push(encryptField(new Date().toISOString()))
-    }
-
-    // Si se completa, registrar completed_at cifrado
-    if (taskData.status === 'completada') {
-      updates.push("completed_at = ?")
-      args.push(encryptField(new Date().toISOString()))
-    }
-  } else if (taskData.completed !== undefined) {
-    updates.push("completed = ?")
-    args.push(encryptField(taskData.completed ? 1 : 0))
-  }
-  if (taskData.duration !== undefined) {
-    updates.push("duration = ?")
-    args.push(encryptField(taskData.duration))
-  }
-  if (taskData.hour !== undefined) {
-    updates.push("hour = ?")
-    args.push(encryptField(Math.max(0, Math.min(23, Number(taskData.hour)))))
-  }
-  if (taskData.date !== undefined) {
-    updates.push("date = ?")
-    args.push(encryptField(taskData.date))
-  }
-  if (taskData.due_date !== undefined) {
-    updates.push("due_date = ?")
-    args.push(encryptField(taskData.due_date))
+    args.push(taskData.description ? encryptField(taskData.description) : null)
   }
   if (taskData.tags !== undefined) {
     updates.push("tags = ?")
-    args.push(encryptField(taskData.tags))
+    args.push(taskData.tags ? encryptField(taskData.tags) : null)
+  }
+  // Campos no cifrados — guardar como valores planos
+  if (taskData.category !== undefined) {
+    updates.push("category = ?")
+    args.push(taskData.category)
+  }
+  if (taskData.priority !== undefined) {
+    updates.push("priority = ?")
+    args.push(taskData.priority)
+  }
+  if (taskData.status !== undefined) {
+    updates.push("status = ?")
+    args.push(taskData.status)
+    const isCompleted = taskData.status === 'completada' ? 1 : 0
+    updates.push("completed = ?")
+    args.push(isCompleted)
+    if (taskData.status === 'en-progreso') {
+      updates.push("started_at = ?")
+      args.push(new Date().toISOString())
+    }
+    if (taskData.status === 'completada') {
+      updates.push("completed_at = ?")
+      args.push(new Date().toISOString())
+    }
+  } else if (taskData.completed !== undefined) {
+    updates.push("completed = ?")
+    args.push(taskData.completed ? 1 : 0)
+  }
+  if (taskData.duration !== undefined) {
+    updates.push("duration = ?")
+    args.push(taskData.duration)
+  }
+  if (taskData.hour !== undefined) {
+    updates.push("hour = ?")
+    args.push(Math.max(0, Math.min(23, Number(taskData.hour))))
+  }
+  if (taskData.date !== undefined) {
+    updates.push("date = ?")
+    args.push(taskData.date)
+  }
+  if (taskData.due_date !== undefined) {
+    updates.push("due_date = ?")
+    args.push(taskData.due_date)
+  }
+  if (taskData.started_at !== undefined) {
+    updates.push("started_at = ?")
+    args.push(taskData.started_at)
+  }
+  if (taskData.time_elapsed !== undefined) {
+    updates.push("time_elapsed = ?")
+    args.push(taskData.time_elapsed)
+  }
+  if (taskData.completed_at !== undefined) {
+    updates.push("completed_at = ?")
+    args.push(taskData.completed_at)
   }
 
   updates.push("updated_at = CURRENT_TIMESTAMP")

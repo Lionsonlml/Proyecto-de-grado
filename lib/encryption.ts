@@ -201,13 +201,8 @@ export function decryptField(encrypted: string | null | undefined): string | nul
 
 export function encryptTaskFullData(taskData: Record<string, any>): Record<string, any> {
   const result = { ...taskData }
-  const fieldsToEncrypt = [
-    'title', 'description', 'tags',
-    'category', 'priority', 'status',
-    'duration', 'completed', 'hour',
-    'date', 'due_date', 'started_at',
-    'time_elapsed', 'completed_at',
-  ]
+  // Solo cifrar campos sensibles de texto libre
+  const fieldsToEncrypt = ['title', 'description', 'tags']
   for (const field of fieldsToEncrypt) {
     if (result[field] !== undefined && result[field] !== null) {
       result[field] = encryptField(result[field])
@@ -216,24 +211,45 @@ export function encryptTaskFullData(taskData: Record<string, any>): Record<strin
   return result
 }
 
+// Descifra un campo que puede estar cifrado (hex:hex) o ser texto/número plano
+function safeDecryptField(v: any): any {
+  if (v === null || v === undefined) return v
+  if (typeof v === 'string' && isEncrypted(v)) return decryptSensitiveData(v)
+  return v
+}
+
 export function decryptTaskFullData(row: Record<string, any>): Record<string, any> {
-  const dec = (v: any) => decryptField(v)
+  const decText = (v: any): string | null => {
+    if (v === null || v === undefined) return null
+    const result = safeDecryptField(v)
+    return result !== null && result !== undefined ? String(result) : null
+  }
+  const decInt = (v: any): number => {
+    if (v === null || v === undefined) return 0
+    const result = safeDecryptField(v)
+    return parseInt(String(result ?? '0'), 10) || 0
+  }
+  const decCompleted = (v: any): number => {
+    if (v === null || v === undefined) return 0
+    const result = safeDecryptField(v)
+    return result === 1 || result === '1' || result === true || result === 'true' ? 1 : 0
+  }
   return {
     ...row,
-    title: dec(row.title) ?? '',
-    description: row.description ? dec(row.description) : null,
-    tags: row.tags ? dec(row.tags) : null,
-    category: dec(row.category) ?? 'otro',
-    priority: dec(row.priority) ?? 'media',
-    status: dec(row.status) ?? 'pendiente',
-    duration: row.duration != null ? (parseInt(dec(row.duration) ?? '0', 10) || 0) : null,
-    completed: (() => { const v = dec(row.completed); return v === '1' || v === 'true' ? 1 : 0 })(),
-    hour: row.hour != null ? (parseInt(dec(row.hour) ?? '0', 10) || 0) : null,
-    date: dec(row.date) ?? null,
-    due_date: row.due_date ? dec(row.due_date) : null,
-    started_at: row.started_at ? dec(row.started_at) : null,
-    time_elapsed: row.time_elapsed != null ? (parseInt(dec(row.time_elapsed) ?? '0', 10) || 0) : null,
-    completed_at: row.completed_at ? dec(row.completed_at) : null,
+    title: decText(row.title) ?? '',
+    description: row.description ? decText(row.description) : null,
+    tags: row.tags ? decText(row.tags) : null,
+    category: decText(row.category) ?? 'otro',
+    priority: decText(row.priority) ?? 'media',
+    status: decText(row.status) ?? 'pendiente',
+    duration: row.duration != null ? decInt(row.duration) : null,
+    completed: decCompleted(row.completed),
+    hour: row.hour != null ? decInt(row.hour) : null,
+    date: decText(row.date) ?? null,
+    due_date: row.due_date ? decText(row.due_date) : null,
+    started_at: row.started_at ? decText(row.started_at) : null,
+    time_elapsed: row.time_elapsed != null ? decInt(row.time_elapsed) : null,
+    completed_at: row.completed_at ? decText(row.completed_at) : null,
   }
 }
 
