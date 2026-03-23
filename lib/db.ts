@@ -50,6 +50,10 @@ async function initializeTables(db: Client): Promise<void> {
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       name TEXT NOT NULL,
+      google_id TEXT,
+      auth_provider TEXT DEFAULT 'email',
+      two_factor_enabled INTEGER DEFAULT 0,
+      avatar_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -214,6 +218,21 @@ async function initializeTables(db: Client): Promise<void> {
     `ALTER TABLE tasks ADD COLUMN pomodoro_sessions INTEGER DEFAULT 0`,
   ]
   for (const sql of taskMigrations) {
+    try {
+      await db.execute(sql)
+    } catch {
+      // Columna ya existe — ignorar
+    }
+  }
+
+  // ─── Migraciones: nuevas columnas users para Google OAuth + 2FA ──────────────
+  const userMigrations = [
+    `ALTER TABLE users ADD COLUMN google_id TEXT`,
+    `ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'email'`,
+    `ALTER TABLE users ADD COLUMN two_factor_enabled INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN avatar_url TEXT`,
+  ]
+  for (const sql of userMigrations) {
     try {
       await db.execute(sql)
     } catch {
