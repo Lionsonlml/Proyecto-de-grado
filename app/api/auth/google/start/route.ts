@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import { randomBytes } from "crypto"
 
-export async function GET() {
+export async function GET(request: Request) {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+  // Usar el origen real de la petición como fallback robusto
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin
 
   if (!clientId) {
     return NextResponse.json({ error: "Google OAuth no configurado" }, { status: 500 })
