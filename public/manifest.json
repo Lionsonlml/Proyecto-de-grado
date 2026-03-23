@@ -4,8 +4,8 @@
   "description": "Optimiza tu tiempo con análisis de IA. Gestiona tareas, estados de ánimo y mejora tu productividad con Timewize.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#6366f1",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
   "orientation": "portrait",
   "scope": "/",
   "icons": [

@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { verifyToken } from "@/lib/auth"
+import { verifyToken, readAuthToken } from "@/lib/auth"
 import { evaluateResponse } from "@/lib/ai-evaluator"
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get("auth-token")?.value
+    const token = readAuthToken(request)
     if (!token) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }

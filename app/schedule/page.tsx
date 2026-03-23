@@ -8,7 +8,8 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DailySchedule } from "@/components/daily-schedule"
 import type { TimeBlock, Task } from "@/lib/types"
-import { ChevronLeft, ChevronRight, Sparkles, Calendar, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Sparkles, Calendar, Loader2, CheckCircle, Trash2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import { AppLayout } from "@/components/app-layout"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -24,6 +25,7 @@ export default function SchedulePage() {
   const [optimizeSource, setOptimizeSource] = useState<AiSource>("gemini")
   const [optimizeCachedAt, setOptimizeCachedAt] = useState<string | undefined>()
   const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const dateStr = currentDate.toISOString().split("T")[0]
 
@@ -151,6 +153,50 @@ export default function SchedulePage() {
     setCurrentDate(newDate)
   }
 
+  // Extrae el ID numérico del bloque (formato "db-123")
+  const extractTaskId = (blockId: string): number | null => {
+    const match = blockId.match(/^db-(\d+)$/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
+  const handleToggleComplete = async (blockId: string) => {
+    const taskId = extractTaskId(blockId)
+    if (!taskId) return
+    const block = blocks.find((b) => b.id === blockId)
+    if (!block) return
+    const newCompleted = !block.completed
+    try {
+      await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: taskId,
+          completed: newCompleted ? 1 : 0,
+          status: newCompleted ? "completada" : "pendiente",
+        }),
+      })
+      setBlocks((prev) =>
+        prev.map((b) => (b.id === blockId ? { ...b, completed: newCompleted } : b))
+      )
+      toast({ title: newCompleted ? "Tarea completada" : "Tarea reanudada" })
+    } catch {
+      toast({ title: "Error al actualizar tarea", variant: "destructive" })
+    }
+  }
+
+  const handleDeleteBlock = async (blockId: string) => {
+    const taskId = extractTaskId(blockId)
+    if (!taskId) return
+    try {
+      const res = await fetch(`/api/tasks?id=${taskId}`, { method: "DELETE" })
+      if (!res.ok) throw new Error()
+      setBlocks((prev) => prev.filter((b) => b.id !== blockId))
+      toast({ title: "Tarea eliminada" })
+    } catch {
+      toast({ title: "Error al eliminar tarea", variant: "destructive" })
+    }
+  }
+
   return (
     <AppLayout>
       <div className="min-h-screen bg-background pt-20 pb-20 md:pt-8 md:pb-8">
@@ -231,9 +277,9 @@ export default function SchedulePage() {
                     blocks={blocks}
                     tasks={tasks}
                     onAddBlock={() => {}}
-                    onEditBlock={() => {}}
-                    onDeleteBlock={() => {}}
-                    onToggleComplete={() => {}}
+                    onEditBlock={() => toast({ title: "Edita la tarea desde la sección Tareas" })}
+                    onDeleteBlock={handleDeleteBlock}
+                    onToggleComplete={handleToggleComplete}
                   />
                 </CardContent>
               </Card>

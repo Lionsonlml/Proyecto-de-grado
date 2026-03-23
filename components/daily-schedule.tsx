@@ -109,26 +109,28 @@ export function DailySchedule({
                                 {block.type}
                               </Badge>
                             </div>
-                            {block.taskId && (
-                              <p className="text-xs text-muted-foreground mt-1">Tarea: {getTaskTitle(block.taskId)}</p>
+                            {block.taskId && getTaskTitle(block.taskId) && getTaskTitle(block.taskId) !== block.title && (
+                              <p className="text-xs text-muted-foreground mt-1">{getTaskTitle(block.taskId)}</p>
                             )}
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
+                              title="Marcar completada"
                               onClick={() => onToggleComplete(block.id)}
                             >
                               <CheckCircle2 className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditBlock(block)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" onClick={() => onEditBlock(block)}>
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-destructive"
+                              title="Eliminar"
                               onClick={() => onDeleteBlock(block.id)}
                             >
                               <Trash2 className="h-4 w-4" />

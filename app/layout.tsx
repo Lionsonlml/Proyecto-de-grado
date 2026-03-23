@@ -86,8 +86,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Timewize" />
 
         {/* Theme color para Android */}
-        <meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
 
         {/* Splash screens para iOS */}
         <link
