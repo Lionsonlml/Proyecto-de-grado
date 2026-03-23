@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { Suspense, useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +9,7 @@ import { Brain, Loader2, ShieldCheck } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { saveAuthToken } from "@/lib/capacitor-auth"
 
-export default function TwoFactorPage() {
+function TwoFactorContent() {
   const [code, setCode] = useState("")
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -23,7 +23,6 @@ export default function TwoFactorPage() {
 
   const tempToken = searchParams.get("tempToken") ?? ""
 
-  // Enviar código automáticamente al montar
   useEffect(() => {
     if (tempToken) sendCode()
   }, [tempToken]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -44,7 +43,7 @@ export default function TwoFactorPage() {
         return
       }
       setCodeSent(true)
-      if (data.code) setDevCode(data.code) // Solo en dev
+      if (data.code) setDevCode(data.code)
       inputRef.current?.focus()
     } catch {
       setErrorMsg("Error de conexión")
@@ -163,5 +162,17 @@ export default function TwoFactorPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function TwoFactorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <TwoFactorContent />
+    </Suspense>
   )
 }
