@@ -257,11 +257,10 @@ export function decryptTaskFullData(row: Record<string, any>): Record<string, an
 
 export function encryptMoodFullData(moodData: Record<string, any>): Record<string, any> {
   const result = { ...moodData }
-  const fieldsToEncrypt = [
-    'notes',
-    'energy', 'focus', 'stress',
-    'type', 'hour', 'date',
-  ]
+  // Solo cifrar el campo de texto libre sensible (notes).
+  // energy, focus, stress y hour son INTEGER con CHECK constraints en la BD
+  // y NO deben cifrarse; type y date son metadatos no sensibles.
+  const fieldsToEncrypt = ['notes']
   for (const field of fieldsToEncrypt) {
     if (result[field] !== undefined && result[field] !== null) {
       result[field] = encryptField(result[field])
@@ -271,16 +270,16 @@ export function encryptMoodFullData(moodData: Record<string, any>): Record<strin
 }
 
 export function decryptMoodFullData(row: Record<string, any>): Record<string, any> {
-  const dec = (v: any) => decryptField(v)
   return {
     ...row,
-    notes: row.notes ? dec(row.notes) : null,
-    energy: parseFloat(dec(row.energy) ?? '0') || 0,
-    focus: parseFloat(dec(row.focus) ?? '0') || 0,
-    stress: parseFloat(dec(row.stress) ?? '0') || 0,
-    type: dec(row.type) ?? null,
-    hour: row.hour != null ? (parseInt(dec(row.hour) ?? '0', 10) || 0) : null,
-    date: dec(row.date) ?? null,
+    // Solo notas se cifran; los demás campos se leen tal cual de la BD
+    notes: row.notes ? decryptField(row.notes) : null,
+    energy: row.energy != null ? Number(row.energy) || 0 : 0,
+    focus: row.focus != null ? Number(row.focus) || 0 : 0,
+    stress: row.stress != null ? Number(row.stress) || 0 : 0,
+    type: row.type ?? null,
+    hour: row.hour != null ? Number(row.hour) || 0 : null,
+    date: row.date ?? null,
   }
 }
 
