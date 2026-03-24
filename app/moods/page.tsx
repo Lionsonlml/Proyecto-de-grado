@@ -9,16 +9,18 @@ import { AppLayout } from "@/components/app-layout"
 
 export default function MoodsPage() {
   const [moods, setMoods] = useState<Mood[]>([])
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadMoods = async (invalidate = false) => {
     try {
       if (invalidate) {
         invalidateCache("/api/moods")
-        invalidateCache("/api/user/data") // también invalidar caché del dashboard
+        invalidateCache("/api/user/data")
       }
       const data = await fetchWithCache<{ moods: any[] }>("/api/moods")
 
-      // Convertir moods de BD al formato de Mood
       const convertedMoods: Mood[] = (data.moods || []).map((m: any) => ({
         id: String(m.id),
         mood: convertMoodType(m.type),
@@ -28,10 +30,12 @@ export default function MoodsPage() {
         notes: m.notes || undefined,
         timestamp: m.created_at || new Date().toISOString(),
       }))
-      
+
       setMoods(convertedMoods)
-    } catch (error) {
+      setLoadError(null)
+    } catch (error: any) {
       console.error("Error cargando moods:", error)
+      setLoadError(error?.message || "No se pudieron cargar los registros")
     }
   }
 
@@ -40,7 +44,9 @@ export default function MoodsPage() {
   }, [])
 
   const convertMoodType = (type: string): Mood["mood"] => {
+    if (!type) return "neutral"
     const lowerType = type.toLowerCase()
+    if (lowerType.includes("muy-mal") || lowerType === "muy-mal") return "muy-mal"
     if (lowerType.includes("excelente") || lowerType.includes("enfocado") || lowerType.includes("energético") || lowerType.includes("peak")) return "excelente"
     if (lowerType.includes("bien") || lowerType.includes("productivo") || lowerType.includes("motivado")) return "bien"
     if (lowerType.includes("mal") || lowerType.includes("cansado") || lowerType.includes("lento")) return "mal"
@@ -49,8 +55,11 @@ export default function MoodsPage() {
   }
 
   const handleSubmit = async (moodData: Omit<Mood, "id" | "timestamp">) => {
+    setSaveError(null)
+    setSaveSuccess(false)
+
     try {
-      await fetch("/api/moods", {
+      const res = await fetch("/api/moods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -62,9 +71,20 @@ export default function MoodsPage() {
         }),
       })
 
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        const msg = data.error || `Error ${res.status}`
+        const detail = data.detail ? ` — ${data.detail}` : ""
+        setSaveError(`${msg}${detail}`)
+        return
+      }
+
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
       await loadMoods(true)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error guardando mood:", error)
+      setSaveError("Error de conexión. Intenta de nuevo.")
     }
   }
 
@@ -79,6 +99,25 @@ export default function MoodsPage() {
 
           <div className="grid gap-4 md:gap-6">
             <MoodTracker onSubmit={handleSubmit} />
+
+            {saveSuccess && (
+              <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400 text-sm font-medium">
+                Estado de ánimo guardado exitosamente
+              </div>
+            )}
+
+            {saveError && (
+              <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm font-medium">
+                Error al guardar: {saveError}
+              </div>
+            )}
+
+            {loadError && (
+              <div className="p-3 rounded-lg border border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400 text-sm">
+                Error al cargar registros: {loadError}
+              </div>
+            )}
+
             <MoodHistory moods={moods} />
           </div>
         </div>
