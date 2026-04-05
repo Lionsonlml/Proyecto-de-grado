@@ -14,9 +14,10 @@ interface DailyScheduleProps {
   onEditBlock: (block: TimeBlock) => void
   onDeleteBlock: (id: string) => void
   onToggleComplete: (id: string) => void
+  compact?: boolean
 }
 
-const hours = Array.from({ length: 24 }, (_, i) => i)
+const allHours = Array.from({ length: 24 }, (_, i) => i)
 
 export function DailySchedule({
   date,
@@ -26,6 +27,7 @@ export function DailySchedule({
   onEditBlock,
   onDeleteBlock,
   onToggleComplete,
+  compact = false,
 }: DailyScheduleProps) {
   const dateStr = date.toISOString().split("T")[0]
   const dayBlocks = blocks.filter((b) => b.date === dateStr)
@@ -36,6 +38,10 @@ export function DailySchedule({
       return startHour === hour
     })
   }
+
+  const hours = compact
+    ? allHours.filter((h) => getBlocksForHour(h).length > 0)
+    : allHours
 
   const getTaskTitle = (taskId?: string) => {
     if (!taskId) return null
@@ -67,6 +73,12 @@ export function DailySchedule({
         </div>
       </CardHeader>
       <CardContent>
+        {compact && hours.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">
+            <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No hay tareas para este día</p>
+          </div>
+        ) : (
         <div className="space-y-1">
           {hours.map((hour) => {
             const hourBlocks = getBlocksForHour(hour)
@@ -145,6 +157,7 @@ export function DailySchedule({
             )
           })}
         </div>
+        )}
       </CardContent>
     </Card>
   )
