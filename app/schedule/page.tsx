@@ -51,10 +51,14 @@ export default function SchedulePage() {
   const [showAddBlock, setShowAddBlock] = useState(false)
   const [addBlockDate, setAddBlockDate] = useState<string>("")
   const [addingBlock, setAddingBlock] = useState(false)
+  const [addBlockMode, setAddBlockMode] = useState<"nueva" | "existente">("nueva")
   const [newBlockTitle, setNewBlockTitle] = useState("")
   const [newBlockHour, setNewBlockHour] = useState("9")
   const [newBlockDuration, setNewBlockDuration] = useState("60")
   const [newBlockType, setNewBlockType] = useState<TimeBlock["type"]>("tarea")
+  // Para reagendar tarea existente
+  const [rawTaskList, setRawTaskList] = useState<Array<{id: number, title: string, hour: number, duration: number, date: string}>>([])
+  const [selectedExistingId, setSelectedExistingId] = useState<string>("")
 
   const { toast } = useToast()
 
@@ -265,53 +269,261 @@ export default function SchedulePage() {
     }
   }
 
+  // ── Cargar tareas para el formulario de reagendar ───────────────────────────
+  const loadTasksForForm = async () => {
+    try {
+      const res = await fetch("/api/tasks")
+      if (!res.ok) return
+      const data = await res.json()
+      setRawTaskList(
+        (data.tasks || []).map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          hour: t.hour || 9,
+          duration: t.duration || 60,
+          date: t.date,
+        }))
+      )
+    } catch {}
+  }
+
   const openAddBlock = (date?: Date) => {
     const targetDate = date ? date.toISOString().split("T")[0] : dateStr
     setAddBlockDate(targetDate)
+    setAddBlockMode("nueva")
+    setNewBlockTitle("")
     setNewBlockHour("9")
     setNewBlockDuration("60")
     setNewBlockType("tarea")
-    setNewBlockTitle("")
+    setSelectedExistingId("")
     setShowAddBlock(true)
+    loadTasksForForm()
+  }
+
+  const handleSelectExistingTask = (taskId: string) => {
+    setSelectedExistingId(taskId)
+    const task = rawTaskList.find((t) => String(t.id) === taskId)
+    if (task) {
+      setNewBlockTitle(task.title)
+      setNewBlockHour(String(task.hour))
+      setNewBlockDuration(String(task.duration))
+    }
   }
 
   const handleAddBlock = async (e: FormEvent) => {
     e.preventDefault()
-    if (!newBlockTitle.trim()) return
+    const hour = Math.max(0, Math.min(23, parseInt(newBlockHour) || 9))
+    const targetDate = addBlockDate || dateStr
+
     setAddingBlock(true)
     try {
-      const hour = Math.max(0, Math.min(23, parseInt(newBlockHour) || 9))
-      const duration = Math.max(1, parseInt(newBlockDuration) || 60)
-      const categoryMap: Record<TimeBlock["type"], string> = {
-        tarea: "personal", reunion: "trabajo", descanso: "salud", otro: "otro",
-      }
-      const res = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newBlockTitle.trim(),
-          category: categoryMap[newBlockType],
-          priority: "media",
-          status: "pendiente",
-          duration,
-          hour,
-          date: addBlockDate || dateStr,
-        }),
-      })
-      if (!res.ok) throw new Error()
-      toast({ title: "Bloque añadido correctamente" })
-      setShowAddBlock(false)
-      if (calendarView === "day") {
-        await loadData()
+      if (addBlockMode === "existente" && selectedExistingId) {
+        // Reagendar: actualizar hora y fecha de la tarea existente
+        const res = await fetch("/api/tasks", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: parseInt(selectedExistingId), hour, date: targetDate }),
+        })
+        if (!res.ok) throw new Error()
+        toast({ title: "Tarea reagendada correctamente" })
       } else {
-        await loadAllData()
+        // Nueva tarea
+        if (!newBlockTitle.trim()) return
+        const duration = Math.max(1, parseInt(newBlockDuration) || 60)
+        const categoryMap: Record<TimeBlock["type"], string> = {
+          tarea: "personal", reunion: "trabajo", descanso: "salud", otro: "otro",
+        }
+        const res = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: newBlockTitle.trim(),
+            category: categoryMap[newBlockType],
+            priority: "media",
+            status: "pendiente",
+            duration,
+            hour,
+            date: targetDate,
+          }),
+        })
+        if (!res.ok) throw new Error()
+        toast({ title: "Bloque añadido correctamente" })
       }
+
+      setShowAddBlock(false)
+      if (calendarView === "day") await loadData()
+      else await loadAllData()
     } catch {
-      toast({ title: "Error al añadir bloque", variant: "destructive" })
+      toast({ title: "Error al guardar el bloque", variant: "destructive" })
     } finally {
       setAddingBlock(false)
     }
   }
+
+  // ── Formulario reutilizable (día y semana) ───────────────────────────────────
+  const AddBlockForm = () => (
+    <Card className="border-primary/50 mb-4">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">
+              {addBlockMode === "existente" ? "Reagendar tarea" : "Nuevo bloque"}
+            </CardTitle>
+            {addBlockDate && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Fecha: {addBlockDate}
+              </p>
+            )}
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowAddBlock(false)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Toggle Nueva / Reagendar */}
+        <div className="flex rounded-lg border border-border overflow-hidden w-full mb-4">
+          <button
+            type="button"
+            onClick={() => { setAddBlockMode("nueva"); setSelectedExistingId(""); setNewBlockTitle("") }}
+            className={`flex-1 py-2 text-sm font-medium transition-colors ${
+              addBlockMode === "nueva"
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-muted-foreground"
+            }`}
+          >
+            + Nueva tarea
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddBlockMode("existente")}
+            className={`flex-1 py-2 text-sm font-medium border-l border-border transition-colors ${
+              addBlockMode === "existente"
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-muted-foreground"
+            }`}
+          >
+            ↕ Reagendar existente
+          </button>
+        </div>
+
+        <form onSubmit={handleAddBlock} className="space-y-3">
+          {/* Selector de tarea existente */}
+          {addBlockMode === "existente" ? (
+            <div className="space-y-1.5">
+              <Label>Selecciona una tarea</Label>
+              <Select value={selectedExistingId} onValueChange={handleSelectExistingTask}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Elige una tarea para reagendar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {rawTaskList.length === 0 ? (
+                    <SelectItem value="__empty" disabled>Sin tareas disponibles</SelectItem>
+                  ) : (
+                    rawTaskList.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.title}
+                        <span className="ml-2 text-muted-foreground text-xs">
+                          ({t.date} · {t.hour}:00)
+                        </span>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {selectedExistingId && newBlockTitle && (
+                <p className="text-xs text-muted-foreground px-1">
+                  Tarea seleccionada: <strong>{newBlockTitle}</strong>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="block-title">Título</Label>
+              <Input
+                id="block-title"
+                value={newBlockTitle}
+                onChange={(e) => setNewBlockTitle(e.target.value)}
+                placeholder="Nombre del bloque..."
+                required
+                autoFocus
+              />
+            </div>
+          )}
+
+          {/* Campos hora y duración */}
+          <div className={`grid gap-3 ${addBlockMode === "nueva" ? "grid-cols-3" : "grid-cols-2"}`}>
+            <div className="space-y-1.5">
+              <Label htmlFor="block-hour">Hora (0-23)</Label>
+              <Input
+                id="block-hour"
+                type="number"
+                min="0"
+                max="23"
+                value={newBlockHour}
+                onChange={(e) => setNewBlockHour(e.target.value)}
+              />
+            </div>
+            {addBlockMode === "nueva" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="block-duration">Duración (min)</Label>
+                <Input
+                  id="block-duration"
+                  type="number"
+                  min="1"
+                  value={newBlockDuration}
+                  onChange={(e) => setNewBlockDuration(e.target.value)}
+                />
+              </div>
+            )}
+            {addBlockMode === "nueva" && (
+              <div className="space-y-1.5">
+                <Label>Tipo</Label>
+                <Select value={newBlockType} onValueChange={(v) => setNewBlockType(v as TimeBlock["type"])}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tarea">Tarea</SelectItem>
+                    <SelectItem value="reunion">Reunión</SelectItem>
+                    <SelectItem value="descanso">Descanso</SelectItem>
+                    <SelectItem value="otro">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {addBlockMode === "existente" && (
+              <div className="space-y-1.5">
+                <Label>Nueva duración (min)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={newBlockDuration}
+                  onChange={(e) => setNewBlockDuration(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={
+                addingBlock ||
+                (addBlockMode === "nueva" && !newBlockTitle.trim()) ||
+                (addBlockMode === "existente" && !selectedExistingId)
+              }
+            >
+              {addingBlock && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+              {addBlockMode === "existente" ? "Reagendar" : "Guardar bloque"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowAddBlock(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -461,79 +673,7 @@ export default function SchedulePage() {
               </TabsList>
 
               <TabsContent value="original" className="space-y-4">
-                {showAddBlock && (
-                  <Card className="border-primary/50">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">Nuevo bloque</CardTitle>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowAddBlock(false)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <form onSubmit={handleAddBlock} className="space-y-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="block-title">Título</Label>
-                          <Input
-                            id="block-title"
-                            value={newBlockTitle}
-                            onChange={(e) => setNewBlockTitle(e.target.value)}
-                            placeholder="Nombre del bloque..."
-                            required
-                            autoFocus
-                          />
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="block-hour">Hora (0-23)</Label>
-                            <Input
-                              id="block-hour"
-                              type="number"
-                              min="0"
-                              max="23"
-                              value={newBlockHour}
-                              onChange={(e) => setNewBlockHour(e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="block-duration">Duración (min)</Label>
-                            <Input
-                              id="block-duration"
-                              type="number"
-                              min="1"
-                              value={newBlockDuration}
-                              onChange={(e) => setNewBlockDuration(e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Tipo</Label>
-                            <Select value={newBlockType} onValueChange={(v) => setNewBlockType(v as TimeBlock["type"])}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="tarea">Tarea</SelectItem>
-                                <SelectItem value="reunion">Reunión</SelectItem>
-                                <SelectItem value="descanso">Descanso</SelectItem>
-                                <SelectItem value="otro">Otro</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <Button type="submit" size="sm" disabled={addingBlock || !newBlockTitle.trim()}>
-                            {addingBlock ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                            Guardar bloque
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setShowAddBlock(false)}>
-                            Cancelar
-                          </Button>
-                        </div>
-                      </form>
-                    </CardContent>
-                  </Card>
-                )}
+                {showAddBlock && <AddBlockForm />}
 
                 <Card>
                   <CardHeader>
@@ -614,56 +754,7 @@ export default function SchedulePage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {showAddBlock && (
-                  <div className="mb-4 p-4 rounded-lg border border-primary/50 bg-primary/5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Nuevo bloque — {addBlockDate}</span>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowAddBlock(false)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <form onSubmit={handleAddBlock} className="space-y-3">
-                      <Input
-                        value={newBlockTitle}
-                        onChange={(e) => setNewBlockTitle(e.target.value)}
-                        placeholder="Nombre del bloque..."
-                        required
-                        autoFocus
-                      />
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Hora</Label>
-                          <Input type="number" min="0" max="23" value={newBlockHour} onChange={(e) => setNewBlockHour(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Duración (min)</Label>
-                          <Input type="number" min="1" value={newBlockDuration} onChange={(e) => setNewBlockDuration(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Tipo</Label>
-                          <Select value={newBlockType} onValueChange={(v) => setNewBlockType(v as TimeBlock["type"])}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="tarea">Tarea</SelectItem>
-                              <SelectItem value="reunion">Reunión</SelectItem>
-                              <SelectItem value="descanso">Descanso</SelectItem>
-                              <SelectItem value="otro">Otro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button type="submit" size="sm" disabled={addingBlock || !newBlockTitle.trim()}>
-                          {addingBlock && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
-                          Guardar
-                        </Button>
-                        <Button type="button" variant="outline" size="sm" onClick={() => setShowAddBlock(false)}>
-                          Cancelar
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                )}
+                {showAddBlock && <AddBlockForm />}
                 <WeekSchedule
                   referenceDate={currentDate}
                   blocks={allBlocks}
