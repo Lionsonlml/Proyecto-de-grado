@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -8,7 +8,10 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DailySchedule } from "@/components/daily-schedule"
 import type { TimeBlock, Task } from "@/lib/types"
-import { ChevronLeft, ChevronRight, Sparkles, Calendar, Loader2, CheckCircle, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Sparkles, Calendar, Loader2, CheckCircle, Trash2, X } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { AppLayout } from "@/components/app-layout"
 import { format } from "date-fns"
@@ -25,6 +28,12 @@ export default function SchedulePage() {
   const [optimizeSource, setOptimizeSource] = useState<AiSource>("gemini")
   const [optimizeCachedAt, setOptimizeCachedAt] = useState<string | undefined>()
   const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null)
+  const [showAddBlock, setShowAddBlock] = useState(false)
+  const [addingBlock, setAddingBlock] = useState(false)
+  const [newBlockTitle, setNewBlockTitle] = useState("")
+  const [newBlockHour, setNewBlockHour] = useState("9")
+  const [newBlockDuration, setNewBlockDuration] = useState("60")
+  const [newBlockType, setNewBlockType] = useState<TimeBlock["type"]>("tarea")
   const { toast } = useToast()
 
   const dateStr = currentDate.toISOString().split("T")[0]
@@ -197,6 +206,47 @@ export default function SchedulePage() {
     }
   }
 
+  const handleAddBlock = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!newBlockTitle.trim()) return
+    setAddingBlock(true)
+    try {
+      const hour = Math.max(0, Math.min(23, parseInt(newBlockHour) || 9))
+      const duration = Math.max(1, parseInt(newBlockDuration) || 60)
+      const categoryMap: Record<TimeBlock["type"], string> = {
+        tarea: "personal",
+        reunion: "trabajo",
+        descanso: "salud",
+        otro: "otro",
+      }
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newBlockTitle.trim(),
+          category: categoryMap[newBlockType],
+          priority: "media",
+          status: "pendiente",
+          duration,
+          hour,
+          date: dateStr,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast({ title: "Bloque añadido correctamente" })
+      setShowAddBlock(false)
+      setNewBlockTitle("")
+      setNewBlockHour("9")
+      setNewBlockDuration("60")
+      setNewBlockType("tarea")
+      await loadData()
+    } catch {
+      toast({ title: "Error al añadir bloque", variant: "destructive" })
+    } finally {
+      setAddingBlock(false)
+    }
+  }
+
   return (
     <AppLayout>
       <div className="min-h-screen bg-background pt-20 pb-20 md:pt-8 md:pb-8">
@@ -266,6 +316,79 @@ export default function SchedulePage() {
             </div>
 
             <TabsContent value="original" className="space-y-4">
+              {showAddBlock && (
+                <Card className="border-primary/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Nuevo bloque</CardTitle>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowAddBlock(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleAddBlock} className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="block-title">Título</Label>
+                        <Input
+                          id="block-title"
+                          value={newBlockTitle}
+                          onChange={(e) => setNewBlockTitle(e.target.value)}
+                          placeholder="Nombre del bloque..."
+                          required
+                          autoFocus
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="block-hour">Hora (0-23)</Label>
+                          <Input
+                            id="block-hour"
+                            type="number"
+                            min="0"
+                            max="23"
+                            value={newBlockHour}
+                            onChange={(e) => setNewBlockHour(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="block-duration">Duración (min)</Label>
+                          <Input
+                            id="block-duration"
+                            type="number"
+                            min="1"
+                            value={newBlockDuration}
+                            onChange={(e) => setNewBlockDuration(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Tipo</Label>
+                          <Select value={newBlockType} onValueChange={(v) => setNewBlockType(v as TimeBlock["type"])}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tarea">Tarea</SelectItem>
+                              <SelectItem value="reunion">Reunión</SelectItem>
+                              <SelectItem value="descanso">Descanso</SelectItem>
+                              <SelectItem value="otro">Otro</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button type="submit" size="sm" disabled={addingBlock || !newBlockTitle.trim()}>
+                          {addingBlock ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                          Guardar bloque
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setShowAddBlock(false)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader>
                   <CardTitle>Horario Original</CardTitle>
@@ -276,7 +399,7 @@ export default function SchedulePage() {
                     date={currentDate}
                     blocks={blocks}
                     tasks={tasks}
-                    onAddBlock={() => {}}
+                    onAddBlock={() => setShowAddBlock(true)}
                     onEditBlock={() => toast({ title: "Edita la tarea desde la sección Tareas" })}
                     onDeleteBlock={handleDeleteBlock}
                     onToggleComplete={handleToggleComplete}

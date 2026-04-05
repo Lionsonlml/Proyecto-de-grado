@@ -435,12 +435,12 @@ export async function getGeminiUserTasks(userId: number, targetUserId: number, d
   
   if (date) {
     result = await db.execute({
-      sql: "SELECT id, title, description, category, priority, status, duration, completed, hour, date, tags FROM tasks WHERE user_id = ? AND date = ? ORDER BY hour ASC",
+      sql: "SELECT id, title, description, category, priority, status, duration, completed, hour, date, tags, is_fixed_time FROM tasks WHERE user_id = ? AND date = ? ORDER BY hour ASC",
       args: [targetUserId, date],
     })
   } else {
     result = await db.execute({
-      sql: "SELECT id, title, description, category, priority, status, duration, completed, hour, date, tags FROM tasks WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+      sql: "SELECT id, title, description, category, priority, status, duration, completed, hour, date, tags, is_fixed_time FROM tasks WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
       args: [targetUserId],
     })
   }

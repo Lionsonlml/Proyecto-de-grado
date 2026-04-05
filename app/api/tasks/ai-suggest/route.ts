@@ -20,15 +20,20 @@ Tarea: "${title}"
 ${description ? `Descripción: "${description}"` : ''}
 Responde SOLO con JSON válido:
 {"subtasks": [{"title": "subtarea 1"}, {"title": "subtarea 2"}, ...]}`
-    : `Analiza esta tarea y sugiere:
+    : `Analiza esta tarea y sugiere los campos óptimos.
 Tarea: "${title}"
 ${description ? `Descripción: "${description}"` : ''}
+Categorías válidas: trabajo, personal, estudio, salud, otro
+Prioridades válidas: baja, media, alta, urgente
+Estados válidos: pendiente, en-progreso
 Responde SOLO con JSON válido:
 {
   "estimatedMinutes": 60,
   "priority": "media",
+  "category": "personal",
+  "status": "pendiente",
   "tags": ["tag1", "tag2"],
-  "reasoning": "breve explicación"
+  "reasoning": "breve explicación de las sugerencias"
 }`
 
   try {
@@ -57,6 +62,8 @@ Responde SOLO con JSON válido:
       success: true,
       estimatedMinutes: 60,
       priority: 'media',
+      category: 'personal',
+      status: 'pendiente',
       tags: [],
       reasoning: 'Sugerencias por defecto (sin API de IA)',
       source: 'fallback'

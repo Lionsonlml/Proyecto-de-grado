@@ -84,6 +84,8 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
         setAiSuggestion(data)
         if (data.estimatedMinutes) setEstimatedMinutes(String(data.estimatedMinutes))
         if (data.priority) setPriority(data.priority as Task["priority"])
+        if (data.category) setCategory(data.category as Task["category"])
+        if (data.status) setStatus(data.status as Task["status"])
         if (data.tags && Array.isArray(data.tags) && data.tags.length > 0) {
           setTags(data.tags.join(', '))
         }
