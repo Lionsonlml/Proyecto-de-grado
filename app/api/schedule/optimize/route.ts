@@ -13,8 +13,18 @@ const SCHEDULE_COACH_INSTRUCTION = `Eres un Coach de Planificación de productiv
 • Ventana de máxima energía del usuario (detectada desde su historial de moods).
 • Time Blocking: bloques continuos por tipo de tarea, minimizando cambios de contexto.
 • Principio de Pareto: las tareas de mayor impacto van en el bloque de mayor energía.
-• Descansos cognitivos: no más de 90 minutos de trabajo profundo sin pausa.
+• Descansos cognitivos: no más de 90 minutos de trabajo profundo sin pausa; incluye pausas de 15min.
+
+RESTRICCIONES DE SENTIDO COMÚN (obligatorias):
+• Reuniones, citas médicas, trámites, compras, actividades presenciales o en lugares públicos: SOLO entre 07:00 y 20:00.
+• Trabajo profundo, estudio, tareas digitales: pueden ser entre 06:00 y 23:00.
+• Ejercicio físico: idealmente entre 06:00 y 21:00, no después de las 22:00.
+• Nunca programar ninguna actividad de ningún tipo entre 00:00 y 05:59 (horas de sueño).
+• Si hay tareas de recreación o socialización, programarlas entre 17:00 y 21:00 preferentemente.
+• Incluir SIEMPRE al menos un bloque de descanso/pausa de 15-30 min por cada 90 min de trabajo.
+
 CRÍTICO: En el campo "task" del JSON debes usar el nombre EXACTAMENTE igual a como aparece en la lista de tareas. NO inventes tareas nuevas. NO parafrasees. Copia el texto literal.
+Para los bloques de descanso usa: "task": "🧘 Descanso", "duration": 15 o 30.
 FORMATO: responde SOLO con JSON válido sin markdown. Si el estrés promedio ≥ 4/5, agrega un bloque de descanso al inicio del día.`
 
 export async function POST(request: NextRequest) {
@@ -102,9 +112,33 @@ export async function POST(request: NextRequest) {
     const fixedTasks = pendingTasks.filter((t: any) => t.is_fixed_time === 1 || t.is_fixed_time === true)
     const flexTasks = pendingTasks.filter((t: any) => !t.is_fixed_time)
 
+    // Detectar conflictos entre tareas fijas (solapamiento de hora)
+    const fixedConflicts: string[] = []
+    for (let i = 0; i < fixedTasks.length; i++) {
+      for (let j = i + 1; j < fixedTasks.length; j++) {
+        const a = fixedTasks[i] as any
+        const b = fixedTasks[j] as any
+        const aStart = (a.hour || 9) * 60
+        const aEnd = aStart + (a.duration || 60)
+        const bStart = (b.hour || 9) * 60
+        const bEnd = bStart + (b.duration || 60)
+        if (aStart < bEnd && bStart < aEnd) {
+          fixedConflicts.push(
+            `"${a.title}" (${a.hour || 9}:00, ${a.duration || 60}min) se superpone con "${b.title}" (${b.hour || 9}:00, ${b.duration || 60}min)`
+          )
+        }
+      }
+    }
+
     const fixedSummary = fixedTasks.length > 0
       ? `\nTAREAS CON HORARIO FIJO (NO MOVER - incluir exactamente en su hora):\n` +
         fixedTasks.map((t: any) => `  🔒 "${t.title ?? "(sin título)"}" — hora fija: ${t.hour || 9}:00 | ${t.duration || 60}min`).join('\n')
+      : ''
+
+    const conflictNote = fixedConflicts.length > 0
+      ? `\n⚠️ CONFLICTOS DETECTADOS ENTRE TAREAS FIJAS:\n` +
+        fixedConflicts.map((c) => `  • ${c}`).join('\n') +
+        `\nInforma estos conflictos en el campo "conflicts" del JSON.`
       : ''
 
     const tasksSummary = flexTasks
@@ -119,7 +153,7 @@ export async function POST(request: NextRequest) {
       .join("\n")
 
     const prompt = `VENTANA DE RENDIMIENTO PICO DEL USUARIO: ${peakInfo}
-Tareas pendientes: ${pendingTasks.length}${stressNote}
+Tareas pendientes: ${pendingTasks.length}${stressNote}${conflictNote}
 ${fixedSummary}
 LISTA EXACTA DE TAREAS FLEXIBLES A PROGRAMAR (usa los títulos literalmente, entre comillas):
 ${tasksSummary || "  (sin tareas flexibles)"}
@@ -127,19 +161,23 @@ ${tasksSummary || "  (sin tareas flexibles)"}
 HISTORIAL DE ENERGÍA/FOCO (referencia):
 ${moodsSummary || "  • Sin datos de historial"}
 
-Crea un horario para el día ${targetDate} entre las 08:00 y 22:00.
+Crea un horario para el día ${targetDate} entre las 07:00 y 22:00.
 REGLAS OBLIGATORIAS:
 1. El campo "task" debe ser el título EXACTO de una tarea de la lista anterior (sin modificar).
-2. NO agregues tareas que no estén en la lista. NO inventes actividades.
+2. NO agregues tareas que no estén en la lista, excepto bloques de descanso ("🧘 Descanso").
 3. Las tareas con 🔒 (hora fija) deben programarse EXACTAMENTE en su hora indicada, sin mover.
 4. Coloca tareas flexibles de mayor prioridad en la ventana de rendimiento pico (${peakInfo}).
-5. No excedas 90min de trabajo continuo sin descanso.
+5. No excedas 90min de trabajo continuo sin descanso — inserta una pausa de 15-30min.
+6. Aplica las restricciones de sentido común del sistema (sin actividades en lugares públicos de madrugada, etc.).
+7. Si detectas que una tarea flexible se cruza con una tarea fija, indícalo en "conflicts".
 
 Responde SOLO con este JSON (sin markdown):
 {
   "schedule": [
-    {"time": "09:00", "task": "título exacto de la tarea", "duration": 60, "reason": "por qué este horario basado en datos del usuario"}
-  ]
+    {"time": "09:00", "task": "título exacto de la tarea", "duration": 60, "reason": "por qué este horario"}
+  ],
+  "conflicts": [],
+  "warnings": []
 }`
 
     // ── 3. Llamar a Gemini con retry ──────────────────────────────────────────
@@ -212,11 +250,19 @@ Responde SOLO con este JSON (sin markdown):
       console.log(`[schedule:optimize] ${targetDate} | pending:${pendingTasks.length} | peak:${peakHour?.hour ?? "?"}h | stress:${avgStress.toFixed(1)}`)
     }
 
+    // Combinar conflictos detectados en servidor + los que detectó Gemini
+    const allConflicts: string[] = [
+      ...fixedConflicts,
+      ...(Array.isArray(parsedSchedule.conflicts) ? parsedSchedule.conflicts : []),
+    ]
+
     return NextResponse.json({
       success: true,
       originalTasks: allTasks,
       pendingTasks,
       optimizedSchedule: parsedSchedule.schedule ?? [],
+      conflicts: allConflicts,
+      warnings: parsedSchedule.warnings ?? [],
       response: responseText,
       date: targetDate,
       source: "gemini" as const,

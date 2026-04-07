@@ -46,6 +46,8 @@ export default function SchedulePage() {
   const [optimizeSource, setOptimizeSource] = useState<AiSource>("gemini")
   const [optimizeCachedAt, setOptimizeCachedAt] = useState<string | undefined>()
   const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null)
+  const [optimizeConflicts, setOptimizeConflicts] = useState<string[]>([])
+  const [optimizeWarnings, setOptimizeWarnings] = useState<string[]>([])
 
   // ── Formulario "Agregar bloque" ──────────────────────────────────────────────
   const [showAddBlock, setShowAddBlock] = useState(false)
@@ -124,7 +126,7 @@ export default function SchedulePage() {
     }
   }
 
-  // ── Carga del último horario optimizado ─────────────────────────────────────
+  // ── Carga del último horario optimizado (solo si es de hoy) ─────────────────
   useEffect(() => {
     const loadLastSchedule = async () => {
       try {
@@ -140,6 +142,8 @@ export default function SchedulePage() {
         const targetDate = last.metadata
           ? (() => { try { return JSON.parse(last.metadata)?.date || today } catch { return today } })()
           : today
+        // Solo pre-cargar si el horario guardado es de hoy; nunca auto-cambiar a la pestaña optimizada
+        if (targetDate !== today) return
         const optimized: TimeBlock[] = scheduleItems.map((item: any, index: number) => ({
           id: `opt-hist-${index}`,
           title: item.task || item.title || "",
@@ -150,7 +154,7 @@ export default function SchedulePage() {
           completed: false,
         }))
         setOptimizedBlocks(optimized)
-        setScheduleTab("optimized")
+        // No cambiar scheduleTab — el usuario decide cuándo ver el horario optimizado
         setOptimizeSource("cache")
         setLastGeneratedAt(last.created_at as string)
       } catch {
@@ -182,6 +186,8 @@ export default function SchedulePage() {
       const data = await response.json()
       setOptimizeSource(data.source ?? "gemini")
       setOptimizeCachedAt(data.cachedAt)
+      setOptimizeConflicts(Array.isArray(data.conflicts) ? data.conflicts : [])
+      setOptimizeWarnings(Array.isArray(data.warnings) ? data.warnings : [])
       const optimized: TimeBlock[] = (data.optimizedSchedule || []).map((item: any, index: number) => ({
         id: `opt-${index}`,
         title: item.task,
@@ -696,6 +702,24 @@ export default function SchedulePage() {
               </TabsContent>
 
               <TabsContent value="optimized" className="space-y-4">
+                {/* Alertas de conflictos */}
+                {optimizeConflicts.length > 0 && (
+                  <div className="p-3 rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 text-sm space-y-1">
+                    <p className="font-semibold text-orange-800 dark:text-orange-300">⚠️ Conflictos detectados entre tareas de hora fija:</p>
+                    {optimizeConflicts.map((c, i) => (
+                      <p key={i} className="text-orange-700 dark:text-orange-400 text-xs">• {c}</p>
+                    ))}
+                  </div>
+                )}
+                {optimizeWarnings.length > 0 && (
+                  <div className="p-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-800 text-sm space-y-1">
+                    <p className="font-semibold text-yellow-800 dark:text-yellow-300">💡 Advertencias:</p>
+                    {optimizeWarnings.map((w, i) => (
+                      <p key={i} className="text-yellow-700 dark:text-yellow-400 text-xs">• {w}</p>
+                    ))}
+                  </div>
+                )}
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">

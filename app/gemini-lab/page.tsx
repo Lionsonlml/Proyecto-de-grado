@@ -9,7 +9,7 @@ import { Recommendations } from "@/components/recommendations"
 import { ScheduleOptimizer } from "@/components/schedule-optimizer"
 import { InsightsHistory } from "@/components/insights-history"
 import { SimpleEvaluation } from "@/components/simple-evaluation"
-import { Brain, Sparkles, History, Loader2, CheckCircle2, XCircle, Wrench } from "lucide-react"
+import { Brain, Sparkles, History, Loader2, CheckCircle2, XCircle, Wrench, BarChart2, RefreshCw } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 
 export default function GeminiLabPage() {
@@ -20,6 +20,8 @@ export default function GeminiLabPage() {
   } | undefined>()
   const [testLoading, setTestLoading] = useState(false)
   const [testResult, setTestResult] = useState<any>(null)
+  const [usageLoading, setUsageLoading] = useState(false)
+  const [usageData, setUsageData] = useState<any>(null)
   const [patternInitial, setPatternInitial] = useState<{ result: string; generatedAt: string } | null>(null)
   const [recommendationsInitial, setRecommendationsInitial] = useState<{ result: string; generatedAt: string } | null>(null)
   const [scheduleInitial, setScheduleInitial] = useState<{ result: string; generatedAt: string } | null>(null)
@@ -72,6 +74,19 @@ export default function GeminiLabPage() {
       setTestResult({ status: "error", stage: "network", message: "Error de red al conectar con el servidor" })
     } finally {
       setTestLoading(false)
+    }
+  }
+
+  const handleLoadUsage = async () => {
+    setUsageLoading(true)
+    try {
+      const res = await fetch("/api/gemini/usage")
+      const data = await res.json()
+      setUsageData(data)
+    } catch {
+      setUsageData({ error: "No se pudo cargar el uso" })
+    } finally {
+      setUsageLoading(false)
     }
   }
 
@@ -187,6 +202,98 @@ export default function GeminiLabPage() {
                         <pre className="text-xs bg-black/10 rounded p-2 overflow-x-auto">{testResult.rawError}</pre>
                       )}
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Contador de uso de tokens / cuota Gemini */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <BarChart2 className="h-4 w-4" />
+                    Uso de cuota Gemini
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Estimación de llamadas realizadas hoy vs límites del plan gratuito (gemini-2.5-flash-lite)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button onClick={handleLoadUsage} disabled={usageLoading} variant="outline" className="w-full gap-2">
+                    {usageLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Cargando...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        Ver uso actual
+                      </>
+                    )}
+                  </Button>
+
+                  {usageData && !usageData.error && (
+                    <div className="space-y-3 text-sm">
+                      {/* Barra de progreso */}
+                      <div>
+                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                          <span>Solicitudes hoy</span>
+                          <span className="font-medium">
+                            {usageData.today.calls} / {usageData.today.limit.toLocaleString()} ({usageData.today.percentUsed}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              usageData.today.percentUsed >= 90
+                                ? "bg-red-500"
+                                : usageData.today.percentUsed >= 70
+                                ? "bg-yellow-500"
+                                : "bg-green-500"
+                            }`}
+                            style={{ width: `${usageData.today.percentUsed}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-lg bg-muted/50">
+                          <p className="text-muted-foreground">Restantes hoy</p>
+                          <p className="font-bold text-base">{usageData.today.remaining.toLocaleString()}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-muted/50">
+                          <p className="text-muted-foreground">Este mes</p>
+                          <p className="font-bold text-base">{usageData.month.calls}</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-muted/50">
+                          <p className="text-muted-foreground">Límite por minuto</p>
+                          <p className="font-bold text-base">{usageData.limits.rpm} rpm</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-muted/50">
+                          <p className="text-muted-foreground">Límite por día</p>
+                          <p className="font-bold text-base">{usageData.limits.rpd.toLocaleString()} rpd</p>
+                        </div>
+                      </div>
+
+                      {usageData.lastCall && (
+                        <p className="text-xs text-muted-foreground">
+                          Última llamada: <span className="font-medium">{usageData.lastCall.type}</span> —{" "}
+                          {new Date(usageData.lastCall.at).toLocaleString("es-ES")}
+                        </p>
+                      )}
+
+                      {usageData.today.percentUsed >= 80 && (
+                        <div className="p-2 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 text-xs text-yellow-800 dark:text-yellow-300">
+                          ⚠️ Has usado más del 80% de tu cuota diaria. Los análisis pueden usar el modo fallback pronto.
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground opacity-70">{usageData.note}</p>
+                    </div>
+                  )}
+
+                  {usageData?.error && (
+                    <p className="text-xs text-destructive">{usageData.error}</p>
                   )}
                 </CardContent>
               </Card>
