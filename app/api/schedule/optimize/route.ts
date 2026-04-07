@@ -37,39 +37,36 @@ export async function POST(request: NextRequest) {
     const user = await verifyToken(token)
     if (!user) return NextResponse.json({ error: "Token inválido" }, { status: 401 })
 
-    const { date } = await request.json()
+    const { date, force } = await request.json()
     const targetDate = date || new Date().toISOString().split("T")[0]
 
     const cacheKey = buildCacheKey("schedule", "optimize", targetDate)
 
-    // ── 1. Caché ──────────────────────────────────────────────────────────────
-    const cached = await getCached(user.id, cacheKey)
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached.response)
-        return NextResponse.json({
-          success: true,
-          ...parsed,
-          source: "cache" as const,
-          cachedAt: cached.cachedAt,
-        })
-      } catch {
-        // cache corrupto → continuar con Gemini
+    // ── 1. Caché (se omite si force=true) ────────────────────────────────────
+    if (!force) {
+      const cached = await getCached(user.id, cacheKey)
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached.response)
+          return NextResponse.json({
+            success: true,
+            ...parsed,
+            source: "cache" as const,
+            cachedAt: cached.cachedAt,
+          })
+        } catch {
+          // cache corrupto → continuar con Gemini
+        }
       }
     }
 
-    // ── 2. Datos — priorizar tareas del día seleccionado, fallback a todas las pendientes ──
-    const [tasksForDate, allMoods] = await Promise.all([
-      getGeminiUserTasks(user.id, user.id, targetDate, request),
+    // ── 2. Datos — SIEMPRE usar todas las tareas pendientes del usuario ───────
+    const [allTasksRaw, allMoods] = await Promise.all([
+      getGeminiUserTasks(user.id, user.id, undefined, request),
       getGeminiUserMoods(user.id, user.id, undefined, request),
     ])
 
-    // Si no hay tareas para la fecha, obtener todas las pendientes
-    let allTasks: any[] = tasksForDate as any[]
-    if (allTasks.filter((t: any) => !t.completed).length === 0) {
-      const allPending = await getGeminiUserTasks(user.id, user.id, undefined, request)
-      allTasks = allPending as any[]
-    }
+    let allTasks: any[] = allTasksRaw as any[]
 
     const pendingTasks = allTasks.filter((t: any) => !t.completed && t.status !== "cancelada")
 

@@ -174,13 +174,14 @@ export default function SchedulePage() {
   }, [currentDate, calendarView])
 
   // ── Optimizar horario con IA ─────────────────────────────────────────────────
-  const handleOptimize = async () => {
+  // force=true cuando ya hay un horario (botón "Regenerar") → salta la caché
+  const handleOptimize = async (force = false) => {
     setOptimizing(true)
     try {
       const response = await fetch("/api/schedule/optimize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dateStr }),
+        body: JSON.stringify({ date: dateStr, force }),
       })
       if (!response.ok) throw new Error("Error optimizando")
       const data = await response.json()
@@ -198,6 +199,7 @@ export default function SchedulePage() {
         completed: false,
       }))
       setOptimizedBlocks(optimized)
+      setLastGeneratedAt(new Date().toISOString())
       setScheduleTab("optimized")
     } catch (error) {
       console.error("Error optimizando horario:", error)
@@ -544,7 +546,11 @@ export default function SchedulePage() {
               <p className="text-muted-foreground">Organiza tu tiempo de forma visual</p>
             </div>
             {calendarView === "day" && (
-              <Button onClick={handleOptimize} disabled={optimizing} className="gap-2 w-full sm:w-auto">
+              <Button
+                onClick={() => handleOptimize(true)}
+                disabled={optimizing}
+                className="gap-2 w-full sm:w-auto"
+              >
                 {optimizing ? (
                   <><Loader2 className="h-4 w-4 animate-spin" />Optimizando con IA...</>
                 ) : (
