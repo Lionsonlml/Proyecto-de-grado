@@ -9,23 +9,21 @@ import { FALLBACK_SCHEDULE } from "@/lib/ai-fallbacks"
 
 // ─── Sistema: Coach de Planificación ─────────────────────────────────────────
 
-const SCHEDULE_COACH_INSTRUCTION = `Eres un Coach de Planificación de productividad personal. Creas horarios optimizados usando:
+const SCHEDULE_COACH_INSTRUCTION = `Eres un Coach de Planificación de productividad personal. Creas horarios optimizados basándote en:
 • Ventana de máxima energía del usuario (detectada desde su historial de moods).
-• Time Blocking: bloques continuos por tipo de tarea, minimizando cambios de contexto.
-• Principio de Pareto: las tareas de mayor impacto van en el bloque de mayor energía.
-• Descansos cognitivos: no más de 90 minutos de trabajo profundo sin pausa; incluye pausas de 15min.
+• Time Blocking: un bloque por tarea, sin subdividir una tarea en múltiples entradas.
+• Principio de Pareto: tareas de mayor prioridad en la ventana de mayor energía.
 
-RESTRICCIONES DE SENTIDO COMÚN (obligatorias):
-• Reuniones, citas médicas, trámites, compras, actividades presenciales o en lugares públicos: SOLO entre 07:00 y 20:00.
-• Trabajo profundo, estudio, tareas digitales: pueden ser entre 06:00 y 23:00.
-• Ejercicio físico: idealmente entre 06:00 y 21:00, no después de las 22:00.
-• Nunca programar ninguna actividad de ningún tipo entre 00:00 y 05:59 (horas de sueño).
-• Si hay tareas de recreación o socialización, programarlas entre 17:00 y 21:00 preferentemente.
-• Incluir SIEMPRE al menos un bloque de descanso/pausa de 15-30 min por cada 90 min de trabajo.
+REGLAS DE HORARIO:
+• Reuniones, trámites, compras y actividades en lugares físicos: solo entre 07:00 y 20:00.
+• Trabajo digital, estudio: entre 06:00 y 23:00.
+• Ejercicio: entre 06:00 y 21:00.
+• Nada entre 00:00 y 05:59.
+• Solo añadir UN descanso de 30min si el total de trabajo supera 4 horas. No más.
 
-CRÍTICO: En el campo "task" del JSON debes usar el nombre EXACTAMENTE igual a como aparece en la lista de tareas. NO inventes tareas nuevas. NO parafrasees. Copia el texto literal.
-Para los bloques de descanso usa: "task": "🧘 Descanso", "duration": 15 o 30.
-FORMATO: responde SOLO con JSON válido sin markdown. Si el estrés promedio ≥ 4/5, agrega un bloque de descanso al inicio del día.`
+CRÍTICO: Cada tarea aparece UNA SOLA VEZ en el horario. No la repitas ni la dividas.
+En "task" copia el título EXACTAMENTE como aparece en la lista. NO inventes tareas nuevas.
+FORMATO: responde SOLO con JSON válido, sin markdown ni texto extra.`
 
 export async function POST(request: NextRequest) {
   await ensureDbReady()
@@ -149,33 +147,25 @@ export async function POST(request: NextRequest) {
       .map((m: any) => `  [${m.date ?? "?"} ${m.hour ?? "?"}h] energía:${m.energy ?? 0} foco:${m.focus ?? 0} estrés:${m.stress ?? 0}`)
       .join("\n")
 
-    const prompt = `VENTANA DE RENDIMIENTO PICO DEL USUARIO: ${peakInfo}
-Tareas pendientes: ${pendingTasks.length}${stressNote}${conflictNote}
+    const prompt = `Pico de energía del usuario: ${peakInfo}${stressNote}${conflictNote}
 ${fixedSummary}
-LISTA EXACTA DE TAREAS FLEXIBLES A PROGRAMAR (usa los títulos literalmente, entre comillas):
+TAREAS FLEXIBLES A PROGRAMAR (${flexTasks.length} tareas — programa cada una UNA sola vez):
 ${tasksSummary || "  (sin tareas flexibles)"}
 
-HISTORIAL DE ENERGÍA/FOCO (referencia):
-${moodsSummary || "  • Sin datos de historial"}
+Historial de energía/foco (últimas entradas):
+${moodsSummary || "  • Sin datos"}
 
-Crea un horario para el día ${targetDate} entre las 07:00 y 22:00.
-REGLAS OBLIGATORIAS:
-1. El campo "task" debe ser el título EXACTO de una tarea de la lista anterior (sin modificar).
-2. NO agregues tareas que no estén en la lista, excepto bloques de descanso ("🧘 Descanso").
-3. Las tareas con 🔒 (hora fija) deben programarse EXACTAMENTE en su hora indicada, sin mover.
-4. Coloca tareas flexibles de mayor prioridad en la ventana de rendimiento pico (${peakInfo}).
-5. No excedas 90min de trabajo continuo sin descanso — inserta una pausa de 15-30min.
-6. Aplica las restricciones de sentido común del sistema (sin actividades en lugares públicos de madrugada, etc.).
-7. Si detectas que una tarea flexible se cruza con una tarea fija, indícalo en "conflicts".
+Genera un horario para el día ${targetDate} (07:00–22:00) con estas reglas:
+1. Cada tarea aparece exactamente UNA vez en el schedule. No la repitas ni dividas.
+2. Usa el título EXACTO de la lista (copia literalmente, sin modificar).
+3. Las tareas 🔒 van en su hora fija indicada, sin mover.
+4. Tareas de mayor prioridad → ventana de pico de energía (${peakInfo}).
+5. Respeta restricciones de horario por tipo (ver instrucción del sistema).
+6. Solo añade "🧘 Descanso" (30min) si el trabajo total supera 4 horas, máximo 1 descanso.
+7. Si una tarea flexible choca con una fija, agrégala en "conflicts".
 
-Responde SOLO con este JSON (sin markdown):
-{
-  "schedule": [
-    {"time": "09:00", "task": "título exacto de la tarea", "duration": 60, "reason": "por qué este horario"}
-  ],
-  "conflicts": [],
-  "warnings": []
-}`
+Responde SOLO con este JSON (sin markdown, sin texto antes ni después):
+{"schedule":[{"time":"09:00","task":"título exacto","duration":60}],"conflicts":[],"warnings":[]}`
 
     // ── 3. Llamar a Gemini con retry ──────────────────────────────────────────
     const apiKey = getGeminiApiKey()
