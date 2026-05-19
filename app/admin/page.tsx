@@ -234,6 +234,9 @@ export default function AdminPage() {
               <h2 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
                 <Users className="h-4 w-4" /> Usuarios
               </h2>
+              <p className="text-xs text-muted-foreground">
+                Solo se muestran conteos numéricos. Ningún dato personal, nombre ni contenido de usuarios es visible en este panel.
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard title="Total registrados" value={stats.users.total} icon={Users} color="text-blue-500" />
                 <StatCard
@@ -300,23 +303,25 @@ export default function AdminPage() {
                   </CardContent>
                 </Card>
 
-                {stats.tasks.byCategory.length > 0 && (
-                  <Card>
-                    <CardHeader className="p-4 pb-2">
-                      <CardTitle className="text-sm font-medium">Por categoría</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
+                <Card>
+                  <CardHeader className="p-4 pb-2">
+                    <CardTitle className="text-sm font-medium">Por categoría</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    {stats.tasks.byCategory.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">Sin tareas registradas aún.</p>
+                    ) : (
                       <div className="grid grid-cols-2 gap-2">
                         {stats.tasks.byCategory.map((c) => (
                           <div key={c.category as string} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-xs">
-                            <span className="capitalize text-muted-foreground truncate">{c.category as string}</span>
+                            <span className="capitalize text-muted-foreground truncate">{c.category as string || "Sin categoría"}</span>
                             <span className="font-bold ml-2 shrink-0">{c.count as number}</span>
                           </div>
                         ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </section>
 
@@ -338,6 +343,24 @@ export default function AdminPage() {
               <h2 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
                 <Brain className="h-4 w-4" /> Motor de IA
               </h2>
+
+              {/* Disclaimer IA */}
+              <div className="p-3 rounded-lg bg-muted/50 border text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Sobre estas métricas</p>
+                <p>
+                  <span className="font-medium">Análisis totales:</span> peticiones reales enviadas a Gemini (excluye caché y fallbacks).
+                </p>
+                <p>
+                  <span className="font-medium">Caché activa:</span> respuestas guardadas que aún no han expirado — evitan llamadas innecesarias a la API.
+                </p>
+                <p>
+                  <span className="font-medium">Fallbacks:</span> veces que Gemini no respondió correctamente (cuota agotada, error de red, etc.) y se usó una respuesta predefinida.
+                </p>
+                <p>
+                  <span className="font-medium">Tipos de análisis:</span> cada módulo de IA (patrones, recomendaciones, horario) tiene su propio contador de uso.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard title="Análisis totales" value={stats.ai.totalInsights} icon={Brain} color="text-violet-500" />
                 <StatCard
@@ -350,49 +373,70 @@ export default function AdminPage() {
                 <StatCard
                   title="Fallbacks"
                   value={stats.ai.fallbacks.reduce((a, f) => a + (f.count as number), 0)}
+                  subtitle={stats.ai.fallbacks.reduce((a, f) => a + (f.count as number), 0) === 0 ? "Sin incidencias" : "Ver detalle abajo"}
                   icon={AlertTriangle}
-                  color="text-orange-500"
+                  color={stats.ai.fallbacks.reduce((a, f) => a + (f.count as number), 0) > 0 ? "text-orange-500" : "text-green-500"}
                 />
                 <StatCard title="Tipos de análisis" value={stats.ai.byType.length} icon={Zap} color="text-green-500" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {stats.ai.byType.length > 0 && (
-                  <Card>
-                    <CardHeader className="p-4 pb-2">
-                      <CardTitle className="text-sm font-medium">Llamadas por tipo</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                      <div className="space-y-1.5">
+                <Card>
+                  <CardHeader className="p-4 pb-2">
+                    <CardTitle className="text-sm font-medium">Llamadas por tipo de análisis</CardTitle>
+                    <p className="text-xs text-muted-foreground">Cuántas veces los usuarios han solicitado cada módulo de IA</p>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    {stats.ai.byType.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">Sin análisis registrados aún. Los datos aparecerán aquí cuando los usuarios usen el módulo de IA.</p>
+                    ) : (
+                      <div className="space-y-2">
                         {stats.ai.byType.map((t) => (
-                          <div key={t.type as string} className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{t.type as string}</span>
-                            <span className="font-bold">{t.count as number}</span>
+                          <div key={t.type as string} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">{t.type as string}</span>
+                              <span className="font-bold">{t.count as number}</span>
+                            </div>
+                            <ProgressBar
+                              value={t.count as number}
+                              max={stats.ai.totalInsights}
+                              color="bg-violet-500"
+                            />
                           </div>
                         ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    )}
+                  </CardContent>
+                </Card>
 
-                {stats.ai.fallbacks.length > 0 && (
-                  <Card className="border-orange-200 dark:border-orange-900">
-                    <CardHeader className="p-4 pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-orange-500" />
-                        Fallbacks por endpoint
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0 space-y-1.5">
-                      {stats.ai.fallbacks.map((f) => (
+                <Card className={stats.ai.fallbacks.length > 0 ? "border-orange-200 dark:border-orange-900" : ""}>
+                  <CardHeader className="p-4 pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className={`h-4 w-4 ${stats.ai.fallbacks.length > 0 ? "text-orange-500" : "text-muted-foreground"}`} />
+                      Fallbacks por módulo
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      {stats.ai.fallbacks.length === 0
+                        ? "Un fallback ocurre cuando Gemini no responde y se usa contenido predefinido en su lugar."
+                        : "Módulos que han usado respuestas predefinidas por fallo de Gemini (cuota, red, timeout)."}
+                    </p>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 space-y-1.5">
+                    {stats.ai.fallbacks.length === 0 ? (
+                      <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 py-1">
+                        <CheckCircle2 className="h-4 w-4 shrink-0" />
+                        <span>Sin fallbacks registrados — Gemini responde correctamente.</span>
+                      </div>
+                    ) : (
+                      stats.ai.fallbacks.map((f) => (
                         <div key={f.endpoint as string} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground font-mono truncate">{f.endpoint as string}</span>
-                          <span className="font-bold ml-2 shrink-0">{f.count as number}×</span>
+                          <span className="text-muted-foreground truncate">{f.endpoint as string}</span>
+                          <span className="font-bold ml-2 shrink-0 text-orange-600">{f.count as number}×</span>
                         </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </section>
           </>

@@ -1,6 +1,29 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/auth"
 import { ensureDbReady, getDb } from "@/lib/db"
+import { decryptField } from "@/lib/encryption"
+
+const ANALYSIS_TYPE_LABELS: Record<string, string> = {
+  patterns: "Análisis de patrones",
+  recommendations: "Recomendaciones",
+  schedule: "Optimización de horario",
+  motivational: "Frase motivacional",
+}
+
+const ENDPOINT_LABELS: Record<string, string> = {
+  "analyze:patterns": "Análisis de patrones",
+  "analyze:recommendations": "Recomendaciones",
+  "analyze:schedule": "Optimización de horario",
+  "motivational": "Frase motivacional",
+}
+
+function labelType(raw: string): string {
+  return ANALYSIS_TYPE_LABELS[raw] ?? raw
+}
+
+function labelEndpoint(raw: string): string {
+  return ENDPOINT_LABELS[raw] ?? raw
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -82,13 +105,8 @@ export async function GET(request: NextRequest) {
         ORDER BY count DESC
         LIMIT 8
       `),
-      // Llamadas a Gemini por tipo
-      db.execute(`
-        SELECT analysis_type, COUNT(*) as count
-        FROM ai_insights
-        GROUP BY analysis_type
-        ORDER BY count DESC
-      `),
+      // Llamadas a Gemini — traemos analysis_type cifrado, agrupamos en JS
+      db.execute(`SELECT analysis_type FROM ai_insights`),
       // Hits de caché IA
       db.execute(`
         SELECT
@@ -130,6 +148,17 @@ export async function GET(request: NextRequest) {
       ? Math.round(((taskStats.completed as number) / (taskStats.total as number)) * 100)
       : 0
 
+    // Descifrar analysis_type y agrupar en JS
+    const typeCounts: Record<string, number> = {}
+    for (const row of aiInsightsRes.rows) {
+      const raw = decryptField(row.analysis_type as string) ?? (row.analysis_type as string) ?? "desconocido"
+      const label = labelType(raw)
+      typeCounts[label] = (typeCounts[label] ?? 0) + 1
+    }
+    const byType = Object.entries(typeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => ({ type, count }))
+
     return NextResponse.json({
       users: {
         total: usersRes.rows[0]?.total ?? 0,
@@ -155,14 +184,14 @@ export async function GET(request: NextRequest) {
         byType: moodTypeRes.rows.map((r) => ({ type: r.type, count: r.count })),
       },
       ai: {
-        totalInsights: aiInsightsRes.rows.reduce((acc, r) => acc + (r.count as number), 0),
-        byType: aiInsightsRes.rows.map((r) => ({ type: r.analysis_type, count: r.count })),
+        totalInsights: aiInsightsRes.rows.length,
+        byType,
         cache: {
           totalEntries: cacheStats.total_entries ?? 0,
           activeEntries: cacheStats.active_entries ?? 0,
         },
         fallbacks: fallbackRes.rows.map((r) => ({
-          endpoint: r.endpoint,
+          endpoint: labelEndpoint(r.endpoint as string),
           count: r.count,
           totalAttempts: r.total_attempts,
         })),
