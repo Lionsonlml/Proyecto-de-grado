@@ -74,9 +74,9 @@ export function clearAllCache(): void {
 
 let userPromise: Promise<unknown> | null = null
 
-export async function getCachedUser(): Promise<{ user: { id: number; email: string; name: string } } | null> {
+export async function getCachedUser(): Promise<{ user: { id: number; email: string; name: string; role: string } } | null> {
   if (!userPromise) {
-    userPromise = fetch("/api/auth/me")
+    userPromise = fetch("/api/auth/me", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
   }

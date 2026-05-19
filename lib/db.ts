@@ -344,6 +344,13 @@ export async function initializeSeedData(db?: Client): Promise<void> {
   const juanId   = await getId("juan@test.com")
   const carlosId = await getId("carlos@test.com")
   const lauraId  = await getId("laura@test.com")
+  const adminId  = await getId("admin@test.com")
+
+  // Asignar rol admin
+  await database.execute({
+    sql: "INSERT INTO user_roles (user_id, role) VALUES (?, 'admin')",
+    args: [adminId],
+  })
 
   // ── Helpers de inserción ─────────────────────────────────────────────────────
 

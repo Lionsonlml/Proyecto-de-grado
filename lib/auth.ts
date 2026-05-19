@@ -11,6 +11,7 @@ export interface UserPayload {
   id: number
   email: string
   name: string
+  role?: string
 }
 
 export async function hashPassword(password: string): Promise<string> {

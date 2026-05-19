@@ -10,6 +10,7 @@ import { Brain, Loader2, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { saveAuthToken } from "@/lib/capacitor-auth"
+import { invalidateUserCache, clearAllCache } from "@/lib/client-cache"
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""
 
@@ -71,9 +72,12 @@ export default function LoginPage() {
       }
 
       if (data.token) await saveAuthToken(data.token)
+      // Limpiar caché del usuario anterior antes de navegar
+      clearAllCache()
+      invalidateUserCache()
       setLoadingPhase("Preparando tu dashboard...")
       toast({ title: "¡Bienvenido!", description: `Hola ${data.user.name}` })
-      router.push("/dashboard")
+      router.push(data.user.role === "admin" ? "/admin" : "/dashboard")
       router.refresh()
     } catch (error) {
       setErrorMsg("Error de conexión. Verifica tu internet e intenta de nuevo.")

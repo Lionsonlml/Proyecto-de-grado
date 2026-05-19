@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { invalidateUserCache, clearAllCache } from "@/lib/client-cache"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -85,6 +86,8 @@ export default function RegisterPage() {
         return
       }
 
+      clearAllCache()
+      invalidateUserCache()
       toast({ title: "¡Cuenta creada!", description: `Bienvenido ${data.user.name}` })
       router.push("/dashboard")
       router.refresh()

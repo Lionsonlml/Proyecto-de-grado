@@ -22,7 +22,20 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+
+    // Proteger rutas de admin
+    if (pathname.startsWith("/admin")) {
+      if (payload.role !== "admin") {
+        return NextResponse.redirect(new URL("/dashboard", request.url))
+      }
+    }
+
+    // Redirigir admin al panel admin si intenta entrar al dashboard de usuario
+    if (pathname === "/dashboard" && payload.role === "admin") {
+      return NextResponse.redirect(new URL("/admin", request.url))
+    }
+
     return NextResponse.next()
   } catch (error) {
     return NextResponse.redirect(new URL("/login", request.url))

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { randomBytes } from "crypto"
 import { getUserByEmail, verifyPassword, createToken, hashToken } from "@/lib/auth"
 import { ensureDbReady, getTwoFactorEnabled, saveTwoFactorCode } from "@/lib/db"
+import { getUserRole } from "@/lib/roles"
 
 const THIRTY_DAYS = 60 * 60 * 24 * 30
 
@@ -48,12 +49,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Login normal ─────────────────────────────────────────────────────────
-    const token = await createToken({ id: user.id, email: user.email, name: user.name })
+    const role = await getUserRole(user.id)
+    const token = await createToken({ id: user.id, email: user.email, name: user.name, role })
 
     const response = NextResponse.json({
       success: true,
       token,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role },
     })
 
     response.cookies.set("auth-token", token, {

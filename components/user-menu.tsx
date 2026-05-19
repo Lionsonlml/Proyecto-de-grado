@@ -11,7 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User, LogOut, Moon, Sun, Mail, Loader2 } from "lucide-react"
+import { User, LogOut, Moon, Sun, Mail, Loader2, ShieldCheck } from "lucide-react"
+import Link from "next/link"
 import { useTheme } from "next-themes"
 import { getCachedUser, clearAllCache, invalidateUserCache } from "@/lib/client-cache"
 import { useToast } from "@/hooks/use-toast"
@@ -177,6 +178,18 @@ export function UserMenu() {
             </p>
           </div>
         </DropdownMenuLabel>
+
+        {user?.role === "admin" && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="cursor-pointer text-primary">
+              <Link href="/admin">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                <span>Panel Admin</span>
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
 
         <DropdownMenuSeparator />
 

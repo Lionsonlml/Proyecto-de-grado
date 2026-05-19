@@ -17,10 +17,9 @@ export async function GET(request: NextRequest) {
     }
 
     const response = NextResponse.json({
-      user: { id: payload.id, email: payload.email, name: payload.name },
+      user: { id: payload.id, email: payload.email, name: payload.name, role: payload.role ?? "user" },
     })
-    // Caché privada 60s: el cliente la cachea y no vuelve a pedir en cada navegación
-    response.headers.set("Cache-Control", "private, max-age=60")
+    response.headers.set("Cache-Control", "no-store")
     return response
   } catch (error) {
     console.error("Error verificando usuario:", error)
