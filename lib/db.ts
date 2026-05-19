@@ -245,6 +245,36 @@ async function initializeTables(db: Client): Promise<void> {
   }
 
   await initializeSeedData(db)
+  await ensureAdminRole(db)
+}
+
+// ─── Migración: garantizar rol admin para admin@test.com ──────────────────────
+// Idempotente — corre en cada arranque de servidor. Cubre bases de datos
+// existentes donde el seed no se vuelve a ejecutar (usersCount > 0).
+
+async function ensureAdminRole(db: Client): Promise<void> {
+  try {
+    const adminRes = await db.execute({
+      sql: "SELECT id FROM users WHERE email = ?",
+      args: ["admin@test.com"],
+    })
+    if (adminRes.rows.length === 0) return
+
+    const adminId = adminRes.rows[0].id
+
+    // Eliminar cualquier fila previa y forzar rol admin
+    await db.execute({ sql: "DELETE FROM user_roles WHERE user_id = ?", args: [adminId] })
+    await db.execute({
+      sql: "INSERT INTO user_roles (user_id, role) VALUES (?, 'admin')",
+      args: [adminId],
+    })
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[DB] Rol admin asignado a admin@test.com")
+    }
+  } catch (err) {
+    console.error("[DB] Error asignando rol admin:", err)
+  }
 }
 
 // ─── Recurrencia ──────────────────────────────────────────────────────────────
