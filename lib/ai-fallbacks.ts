@@ -65,22 +65,33 @@ export const FALLBACK_ADVICE_TIPS: string[] = [
 // ─── Fallback para analyze: patterns ─────────────────────────────────────────
 
 export const FALLBACK_PATTERNS = {
-  patterns: [
+  patrones: [
     "Tus registros muestran actividad consistente a lo largo del día.",
     "Las tareas de mayor duración tienden a quedar pendientes con más frecuencia.",
     "Los períodos de alta energía coinciden con mayor tasa de completación.",
   ],
-  optimal_times: {
+  horarios_optimos: {
+    rendimiento_pico: "Mañana temprano, cuando la energía y el foco están en su punto más alto.",
     mañana: "Período con mayor energía disponible para tareas cognitivas complejas.",
     tarde: "Momento adecuado para tareas de revisión, comunicación y tareas mecánicas.",
-    noche: "Reservar para planificación del día siguiente, no para tareas de alta concentración.",
   },
-  correlations: [
+  analisis_postergacion: {
+    categorias_en_riesgo: ["Tareas de alta prioridad sin fecha límite cercana"],
+    patron: "Las tareas sin hora asignada tienden a postponerse con más frecuencia.",
+  },
+  estado_estres: {
+    nivel: "medio",
+    recomendaciones: [
+      "Incorpora pausas activas de 5 minutos cada 90 minutos de trabajo.",
+      "Practica respiración profunda antes de iniciar bloques de trabajo intensos.",
+    ],
+  },
+  correlaciones: [
     "Mayor energía → mayor tasa de completación de tareas.",
     "Tareas sin hora asignada tienden a postponerse más.",
     "Bloques de trabajo de 25-50 minutos correlacionan con mejor completación.",
   ],
-  recommendations: [
+  recomendaciones: [
     "Asigna siempre una hora específica a cada tarea para reducir la postergación.",
     "Agrupa tareas similares en el mismo bloque de tiempo.",
     "Registra tu estado de ánimo al inicio del día para anticipar tu rendimiento.",
@@ -91,13 +102,15 @@ export const FALLBACK_PATTERNS = {
 // ─── Fallback para analyze: recommendations ───────────────────────────────────
 
 export const FALLBACK_RECOMMENDATIONS = {
-  recommendations: [
+  recomendaciones: [
     "Establece 3 tareas prioritarias cada mañana y completa al menos 2 antes del mediodía.",
     "Usa bloques de 25 minutos de trabajo enfocado seguidos de 5 minutos de descanso.",
     "Revisa y actualiza tu lista de tareas al final de cada jornada para empezar el día siguiente con claridad.",
     "Identifica tu hora de mayor energía y reserva ese bloque para tu tarea más importante del día.",
     "Elimina o delega las tareas que llevan más de 3 días en estado 'pendiente' sin progreso.",
   ],
+  accion_prioritaria: "Identifica las 3 tareas más importantes de hoy y empieza por la más difícil.",
+  nota_estres: "",
   source: "fallback" as const,
 }
 

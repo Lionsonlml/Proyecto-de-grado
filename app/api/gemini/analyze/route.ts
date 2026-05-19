@@ -179,39 +179,39 @@ ${ctx.tasksSummary || "  • Sin datos"}`
     if (analysisType === "patterns") {
       prompt = `${dataContext}
 
-Analiza los datos anteriores y responde con este JSON exacto:
+Analiza los datos anteriores y responde con este JSON exacto (todas las claves en español, sin markdown):
 {
-  "patterns": ["patrón 1 con datos reales", "patrón 2", "patrón 3"],
-  "optimal_times": {
-    "peak_performance": "rango horario pico con energía+foco máximos",
+  "patrones": ["patrón 1 con datos reales", "patrón 2", "patrón 3"],
+  "horarios_optimos": {
+    "rendimiento_pico": "rango horario pico con energía+foco máximos",
     "mañana": "descripción de rendimiento matutino",
     "tarde": "descripción de rendimiento vespertino"
   },
-  "procrastination_analysis": {
-    "categories_at_risk": ["categoría con baja completación"],
-    "pattern": "descripción del patrón de postergación observado"
+  "analisis_postergacion": {
+    "categorias_en_riesgo": ["categoría con baja completación"],
+    "patron": "descripción del patrón de postergación observado"
   },
-  "stress_status": {
-    "level": "bajo/medio/alto",
-    "recommendations": ["acción concreta 1", "acción concreta 2"]
+  "estado_estres": {
+    "nivel": "bajo/medio/alto",
+    "recomendaciones": ["acción concreta 1", "acción concreta 2"]
   },
-  "correlations": ["correlación dato→resultado 1", "correlación 2"],
-  "recommendations": ["recomendación personalizada 1", "recomendación 2", "recomendación 3"]
+  "correlaciones": ["correlación dato→resultado 1", "correlación 2"],
+  "recomendaciones": ["recomendación personalizada 1", "recomendación 2", "recomendación 3"]
 }`
     } else if (analysisType === "recommendations") {
       prompt = `${dataContext}
 
-Genera 5 recomendaciones altamente personalizadas basadas en los datos. Responde con este JSON exacto:
+Genera 5 recomendaciones altamente personalizadas basadas en los datos. Responde con este JSON exacto (sin markdown):
 {
-  "recommendations": [
+  "recomendaciones": [
     "recomendación específica 1 basada en el patrón real del usuario",
     "recomendación 2",
     "recomendación 3",
     "recomendación 4",
     "recomendación 5"
   ],
-  "priority_action": "la acción más importante que el usuario debe tomar hoy",
-  "stress_note": "observación sobre nivel de estrés (si aplica)"
+  "accion_prioritaria": "la acción más importante que el usuario debe tomar hoy",
+  "nota_estres": "observación sobre nivel de estrés (si aplica, vacío si el estrés es bajo)"
 }`
     } else {
       // schedule mode

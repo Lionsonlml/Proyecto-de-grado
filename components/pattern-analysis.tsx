@@ -13,6 +13,30 @@ interface PatternAnalysisProps {
   initialGeneratedAt?: string
 }
 
+const SUBKEY_LABELS: Record<string, string> = {
+  rendimiento_pico: "Rendimiento Pico",
+  peak_performance: "Rendimiento Pico",
+  mañana: "Mañana",
+  morning: "Mañana",
+  tarde: "Tarde",
+  afternoon: "Tarde",
+  noche: "Noche",
+  evening: "Noche",
+  nivel: "Nivel",
+  level: "Nivel",
+  patron: "Patrón",
+  pattern: "Patrón",
+}
+
+function labelForSubKey(key: string): string {
+  return SUBKEY_LABELS[key] ?? key.replace(/_/g, " ")
+}
+
+function pick<T>(obj: any, ...keys: string[]): T | undefined {
+  for (const k of keys) if (obj[k] != null) return obj[k] as T
+  return undefined
+}
+
 export function PatternAnalysis({ onResponseGenerated, initialResult, initialGeneratedAt }: PatternAnalysisProps) {
   const [loading, setLoading] = useState(false)
   const [analysis, setAnalysis] = useState<any>(() => {
@@ -51,6 +75,13 @@ export function PatternAnalysis({ onResponseGenerated, initialResult, initialGen
       setLoading(false)
     }
   }
+
+  const patrones = pick<string[]>(analysis ?? {}, "patrones", "patterns")
+  const horariosOptimos = pick<Record<string, string>>(analysis ?? {}, "horarios_optimos", "optimal_times")
+  const analisisPostergacion = pick<any>(analysis ?? {}, "analisis_postergacion", "procrastination_analysis")
+  const estadoEstres = pick<any>(analysis ?? {}, "estado_estres", "stress_status")
+  const correlaciones = pick<string[]>(analysis ?? {}, "correlaciones", "correlations")
+  const recomendaciones = pick<string[]>(analysis ?? {}, "recomendaciones", "recommendations")
 
   return (
     <Card>
@@ -99,11 +130,11 @@ export function PatternAnalysis({ onResponseGenerated, initialResult, initialGen
               <p className="text-sm text-destructive">{analysis.error}</p>
             ) : (
               <>
-                {analysis.patterns && (
+                {patrones && patrones.length > 0 && (
                   <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                     <h4 className="font-semibold text-sm mb-2">Patrones Detectados</h4>
                     <ul className="text-sm space-y-1">
-                      {analysis.patterns.map((p: string, i: number) => (
+                      {patrones.map((p: string, i: number) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-blue-600">•</span>
                           <span>{p}</span>
@@ -112,18 +143,93 @@ export function PatternAnalysis({ onResponseGenerated, initialResult, initialGen
                     </ul>
                   </div>
                 )}
-                {analysis.optimal_times && (
+
+                {horariosOptimos && (
                   <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
                     <h4 className="font-semibold text-sm mb-2">Horarios Óptimos</h4>
                     <div className="text-sm space-y-1">
-                      {Object.entries(analysis.optimal_times).map(([key, value]) => (
+                      {Object.entries(horariosOptimos).map(([key, value]) => (
                         <div key={key}>
-                          <span className="font-medium">{key}:</span> {String(value)}
+                          <span className="font-medium capitalize">{labelForSubKey(key)}:</span>{" "}
+                          <span>{String(value)}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
+
+                {analisisPostergacion && (
+                  <div className="p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
+                    <h4 className="font-semibold text-sm mb-2">Análisis de Postergación</h4>
+                    <div className="text-sm space-y-1">
+                      {(analisisPostergacion.categorias_en_riesgo || analisisPostergacion.categories_at_risk)?.length > 0 && (
+                        <div>
+                          <span className="font-medium">Categorías en riesgo:</span>{" "}
+                          {(analisisPostergacion.categorias_en_riesgo || analisisPostergacion.categories_at_risk).join(", ")}
+                        </div>
+                      )}
+                      {(analisisPostergacion.patron || analisisPostergacion.pattern) && (
+                        <div>
+                          <span className="font-medium">Patrón:</span>{" "}
+                          {analisisPostergacion.patron || analisisPostergacion.pattern}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {estadoEstres && (
+                  <div className="p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                    <h4 className="font-semibold text-sm mb-2">Estado de Estrés</h4>
+                    <div className="text-sm space-y-1">
+                      {(estadoEstres.nivel || estadoEstres.level) && (
+                        <div>
+                          <span className="font-medium">Nivel:</span>{" "}
+                          <span className="capitalize">{estadoEstres.nivel || estadoEstres.level}</span>
+                        </div>
+                      )}
+                      {(estadoEstres.recomendaciones || estadoEstres.recommendations)?.length > 0 && (
+                        <ul className="mt-1 space-y-1">
+                          {(estadoEstres.recomendaciones || estadoEstres.recommendations).map((r: string, i: number) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-purple-600">•</span>
+                              <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {correlaciones && correlaciones.length > 0 && (
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-950/20 rounded-lg">
+                    <h4 className="font-semibold text-sm mb-2">Correlaciones</h4>
+                    <ul className="text-sm space-y-1">
+                      {correlaciones.map((c: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-indigo-600">•</span>
+                          <span>{c}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {recomendaciones && recomendaciones.length > 0 && (
+                  <div className="p-3 bg-teal-50 dark:bg-teal-950/20 rounded-lg">
+                    <h4 className="font-semibold text-sm mb-2">Recomendaciones</h4>
+                    <ul className="text-sm space-y-1">
+                      {recomendaciones.map((r: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-teal-600">•</span>
+                          <span>{r}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {analysis.text && (
                   <div className="p-3 bg-muted rounded-lg">
                     <pre className="text-xs whitespace-pre-wrap">{analysis.text}</pre>
@@ -137,4 +243,3 @@ export function PatternAnalysis({ onResponseGenerated, initialResult, initialGen
     </Card>
   )
 }
-
