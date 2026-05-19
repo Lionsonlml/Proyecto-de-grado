@@ -32,3 +32,20 @@ next-env.d.ts
 
 # database (solo el directorio raíz /data/, no rutas como app/api/user/data/)
 /data/
+
+# Claude Code — solo local, nunca al repositorio
+.claude/
+.claude
+CLAUDE.md
+CLAUDE.local.md
+CLAUDE.*.md
+*.claude.md
+claude.json
+claude-*.json
+claude-*.md
+claude.local.*
+.claudeignore
+memory/
+MEMORY.md
+*.memory.md
+EXPOSICION.md

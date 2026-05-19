@@ -50,7 +50,7 @@ export function AppNav() {
       {/* Navegación principal */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:top-0 md:bottom-auto md:border-b md:border-t-0">
         <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center justify-around md:justify-start md:gap-6 flex-1">
+          <div className="flex items-center justify-around md:justify-start md:gap-3 lg:gap-6 flex-1">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
@@ -59,7 +59,7 @@ export function AppNav() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium transition-colors hover:text-primary md:flex-row md:gap-2 md:text-sm",
+                    "flex flex-col items-center gap-1 px-2 py-2 text-xs font-medium transition-colors hover:text-primary md:flex-row md:gap-2 md:text-sm md:px-3",
                     isActive ? "text-primary" : "text-muted-foreground",
                   )}
                 >

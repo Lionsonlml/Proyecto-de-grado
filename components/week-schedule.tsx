@@ -55,8 +55,8 @@ export function WeekSchedule({
 
   return (
     <>
-      {/* ── MÓVIL: tab strip + panel del día seleccionado ───────────────────── */}
-      <div className="md:hidden">
+      {/* ── MÓVIL/TABLET PORTRAIT: tab strip + panel del día seleccionado ────── */}
+      <div className="lg:hidden">
         {/* Tab strip horizontal */}
         <div className="flex overflow-x-auto gap-1 pb-2 scrollbar-none">
           {days.map((day, idx) => {
@@ -183,8 +183,8 @@ export function WeekSchedule({
         </div>
       </div>
 
-      {/* ── DESKTOP: 7 columnas ──────────────────────────────────────────────── */}
-      <div className="hidden md:grid grid-cols-7 gap-1">
+      {/* ── DESKTOP (lg+): 7 columnas ───────────────────────────────────────── */}
+      <div className="hidden lg:grid grid-cols-7 gap-1">
         {days.map((day, idx) => {
           const dayStr = day.toISOString().split("T")[0]
           const isToday = dayStr === todayStr

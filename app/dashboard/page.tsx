@@ -165,8 +165,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-4 md:space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
+          <div className="md:col-span-1 lg:col-span-2 space-y-4 md:space-y-6">
             <RecentTasks tasks={tasks} onStatusChange={handleStatusChange} />
           </div>
 

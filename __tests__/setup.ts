@@ -8,6 +8,9 @@ vi.mock("@/lib/db", () => ({
     execute: vi.fn().mockResolvedValue({ rows: [] }),
   })),
   ensureDbReady: vi.fn().mockResolvedValue(undefined),
+  getTwoFactorEnabled: vi.fn().mockResolvedValue(false),
+  saveTwoFactorCode: vi.fn().mockResolvedValue(undefined),
+  createRecurringNextTask: vi.fn().mockResolvedValue(undefined),
 }))
 
 // ─── Variables de entorno mínimas ─────────────────────────────────────────────
