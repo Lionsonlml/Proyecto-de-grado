@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Lightbulb, Loader2 } from "lucide-react"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
+import { AiInfoBanner } from "@/components/ai-info-banner"
 
 interface RecommendationsProps {
   onResponseGenerated?: (response: string) => void
@@ -61,6 +62,11 @@ export function Recommendations({ onResponseGenerated, initialResult, initialGen
         <CardDescription>Sugerencias basadas en tu historial y estado de ánimo</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <AiInfoBanner
+          variant="info"
+          compact
+          message="Las sugerencias son orientativas y se basan en tus registros de tareas y estado de ánimo. No reemplazan asesoramiento médico, psicológico ni profesional de ningún tipo."
+        />
         <Button onClick={getRecommendations} disabled={loading} className="w-full">
           {loading ? (
             <>
@@ -81,6 +87,13 @@ export function Recommendations({ onResponseGenerated, initialResult, initialGen
 
         {recommendations && (
           <div className="space-y-3">
+            {!recommendations.error && source === "fallback" && (
+              <AiInfoBanner
+                variant="fallback"
+                compact
+                message="El servicio de IA no está disponible en este momento. Se muestran consejos generales de productividad. Las recomendaciones personalizadas estarán disponibles cuando se restablezca la conexión."
+              />
+            )}
             {!recommendations.error && <AiSourceBadge source={source} cachedAt={cachedAt} />}
             {recommendations.error ? (
               <p className="text-sm text-destructive">{recommendations.error}</p>

@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider"
 import type { Mood } from "@/lib/types"
 import { Frown, Meh, Smile, Laugh, Angry } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { AiInfoBanner } from "@/components/ai-info-banner"
 
 
 interface MoodTrackerProps {
@@ -56,6 +57,12 @@ export function MoodTracker({ onSubmit }: MoodTrackerProps) {
         <CardDescription>Registra cómo te sientes en este momento</CardDescription>
       </CardHeader>
       <CardContent>
+        <AiInfoBanner
+          variant="info"
+          compact
+          message="Tus registros de estado de ánimo se almacenan de forma cifrada y son visibles solo para ti. Se usan para mejorar las recomendaciones de IA. No se comparten con terceros."
+          className="mb-4"
+        />
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Mood Selection */}
           <div className="space-y-3">

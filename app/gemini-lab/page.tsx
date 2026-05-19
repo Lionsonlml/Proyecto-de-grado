@@ -8,6 +8,7 @@ import { Recommendations } from "@/components/recommendations"
 import { ScheduleOptimizer } from "@/components/schedule-optimizer"
 import { InsightsHistory } from "@/components/insights-history"
 import { SimpleEvaluation } from "@/components/simple-evaluation"
+import { AiInfoBanner } from "@/components/ai-info-banner"
 import { Brain, Sparkles, History } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 
@@ -20,6 +21,7 @@ export default function GeminiLabPage() {
   const [patternInitial, setPatternInitial] = useState<{ result: string; generatedAt: string } | null>(null)
   const [recommendationsInitial, setRecommendationsInitial] = useState<{ result: string; generatedAt: string } | null>(null)
   const [scheduleInitial, setScheduleInitial] = useState<{ result: string; generatedAt: string } | null>(null)
+  const [quotaPercent, setQuotaPercent] = useState<number | null>(null)
 
   useEffect(() => {
     const loadLastInsights = async () => {
@@ -44,18 +46,29 @@ export default function GeminiLabPage() {
           setScheduleInitial({ result: scheduleInsight.response, generatedAt: scheduleInsight.created_at })
         }
       } catch {
-        // Ignorar errores al cargar historial
+        // ignorar
       }
     }
+
+    const loadQuota = async () => {
+      try {
+        const res = await fetch("/api/gemini/usage")
+        if (!res.ok) return
+        const data = await res.json()
+        if (data?.today?.percentUsed != null) {
+          setQuotaPercent(data.today.percentUsed)
+        }
+      } catch {
+        // ignorar — es informativo
+      }
+    }
+
     loadLastInsights()
+    loadQuota()
   }, [])
 
   const handleResponseGenerated = (type: 'patterns' | 'recommendations' | 'schedule', response: string) => {
-    setLastResponse({
-      text: response,
-      type: type,
-      timestamp: new Date().toISOString()
-    })
+    setLastResponse({ text: response, type, timestamp: new Date().toISOString() })
   }
 
   return (
@@ -70,6 +83,22 @@ export default function GeminiLabPage() {
             <p className="text-sm md:text-base text-muted-foreground">Análisis inteligente con IA</p>
           </div>
 
+          {/* Aviso de cuota — solo cuando supera el 70% */}
+          {quotaPercent !== null && quotaPercent >= 70 && (
+            <div className="mb-4">
+              <AiInfoBanner
+                variant={quotaPercent >= 90 ? "quota" : "warning"}
+                title={quotaPercent >= 90 ? "Cuota de IA casi agotada" : "Cuota de IA al " + quotaPercent + "%"}
+                message={
+                  quotaPercent >= 90
+                    ? "La cuota diaria del servicio de IA está casi agotada (plan gratuito: 1.000 solicitudes/día). Los análisis pueden usar respuestas de respaldo hasta las 00:00 UTC, cuando se restablece la cuota."
+                    : "Se ha usado más del 70% de la cuota diaria de IA. Si se agota, los análisis usarán respuestas predefinidas de forma temporal. La cuota se restablece cada día a las 00:00 UTC."
+                }
+                dismissId={`quota-warn-${new Date().toDateString()}`}
+              />
+            </div>
+          )}
+
           <Tabs defaultValue="analyze" className="space-y-4 md:space-y-6">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="analyze" className="gap-2">
@@ -83,6 +112,7 @@ export default function GeminiLabPage() {
             </TabsList>
 
             <TabsContent value="analyze" className="space-y-4 md:space-y-6">
+              {/* Tarjeta de presentación con disclaimer de IA */}
               <Card className="border-primary/20 bg-primary/5">
                 <CardHeader className="p-4 md:p-6">
                   <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
@@ -92,6 +122,12 @@ export default function GeminiLabPage() {
                   <CardDescription className="text-sm">
                     Timewize AI analiza tus patrones de productividad y te ofrece recomendaciones personalizadas
                   </CardDescription>
+                  <AiInfoBanner
+                    variant="info"
+                    compact
+                    message="Timewize AI utiliza Google Gemini (plan gratuito: 1.000 solicitudes/día · 15/minuto). Los resultados se cachean automáticamente por 24 horas para optimizar el uso. Si la cuota se agota, se activa el Modo de Asistencia Local con sugerencias predefinidas hasta el día siguiente."
+                    className="mt-2"
+                  />
                 </CardHeader>
               </Card>
 
@@ -115,11 +151,16 @@ export default function GeminiLabPage() {
                 />
               </div>
 
-              {/* Evaluación siempre visible */}
               <SimpleEvaluation lastResponse={lastResponse} />
             </TabsContent>
 
             <TabsContent value="history">
+              <AiInfoBanner
+                variant="info"
+                compact
+                message="El historial muestra tus últimos 20 análisis generados. Los resultados se guardan en tu cuenta y son solo visibles para ti."
+                className="mb-4"
+              />
               <InsightsHistory />
             </TabsContent>
           </Tabs>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { TrendingUp, Loader2 } from "lucide-react"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
+import { AiInfoBanner } from "@/components/ai-info-banner"
 
 interface PatternAnalysisProps {
   onResponseGenerated?: (response: string) => void
@@ -61,6 +62,11 @@ export function PatternAnalysis({ onResponseGenerated, initialResult, initialGen
         <CardDescription>Detecta automáticamente tus horas más productivas</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <AiInfoBanner
+          variant="info"
+          compact
+          message="Analiza tus tareas y estado de ánimo de los últimos 30 días para identificar tus horas y condiciones más productivas. Se recomienda al menos 7 días de actividad registrada para obtener resultados precisos."
+        />
         <Button onClick={analyzePatterns} disabled={loading} className="w-full">
           {loading ? (
             <>
@@ -81,6 +87,13 @@ export function PatternAnalysis({ onResponseGenerated, initialResult, initialGen
 
         {analysis && (
           <div className="space-y-3">
+            {!analysis.error && source === "fallback" && (
+              <AiInfoBanner
+                variant="fallback"
+                compact
+                message="El servicio de IA no está disponible temporalmente. Se muestran patrones predefinidos basados en buenas prácticas de productividad. El análisis personalizado estará disponible cuando se restablezca la conexión."
+              />
+            )}
             {!analysis.error && <AiSourceBadge source={source} cachedAt={cachedAt} />}
             {analysis.error ? (
               <p className="text-sm text-destructive">{analysis.error}</p>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Calendar, Loader2 } from "lucide-react"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
+import { AiInfoBanner } from "@/components/ai-info-banner"
 
 interface ScheduleOptimizerProps {
   onResponseGenerated?: (response: string) => void
@@ -61,6 +62,11 @@ export function ScheduleOptimizer({ onResponseGenerated, initialResult, initialG
         <CardDescription>Reorganiza automáticamente tus tareas para máxima eficiencia</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <AiInfoBanner
+          variant="info"
+          compact
+          message="La propuesta de horario es una sugerencia basada en tus tareas pendientes y tus picos de energía registrados. Ajústala libremente según tus compromisos, reuniones y contexto real del día."
+        />
         <Button onClick={optimizeSchedule} disabled={loading} className="w-full">
           {loading ? (
             <>
@@ -81,6 +87,13 @@ export function ScheduleOptimizer({ onResponseGenerated, initialResult, initialG
 
         {schedule && (
           <div className="space-y-3">
+            {!schedule.error && source === "fallback" && (
+              <AiInfoBanner
+                variant="fallback"
+                compact
+                message="El servicio de IA está temporalmente no disponible. Se muestra una distribución estándar de bloques de trabajo. El horario personalizado estará disponible cuando se restablezca la conexión."
+              />
+            )}
             {!schedule.error && <AiSourceBadge source={source} cachedAt={cachedAt} />}
             {schedule.error ? (
               <p className="text-sm text-destructive">{schedule.error}</p>

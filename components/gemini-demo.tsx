@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Brain, Loader2 } from "lucide-react"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
+import { AiInfoBanner } from "@/components/ai-info-banner"
 
 export function GeminiDemo() {
   const [loading, setLoading] = useState(false)
@@ -45,9 +46,15 @@ export function GeminiDemo() {
           <Brain className="h-5 w-5" />
           Prueba Timewize AI
         </CardTitle>
-        <CardDescription>Analiza datos de ejemplo con inteligencia artificial</CardDescription>
+        <CardDescription>Verifica la conexión con IA y muestra los datos reales enviados al modelo</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <AiInfoBanner
+          variant="info"
+          compact
+          dismissId="gemini-demo-info-v1"
+          message="Esta herramienta de diagnóstico muestra exactamente qué datos se envían a la IA y qué responde. Es útil para entender cómo funciona el análisis. Los resultados no se guardan en el historial."
+        />
         <Button onClick={handleAnalyze} disabled={loading} className="w-full">
           {loading ? (
             <>

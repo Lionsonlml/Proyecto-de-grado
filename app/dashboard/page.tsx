@@ -11,6 +11,7 @@ import { MotivationalQuotes } from "@/components/motivational-quotes"
 import type { Task, Mood } from "@/lib/types"
 import { CheckCircle2, ListTodo, Clock, Calendar } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
+import { AiInfoBanner } from "@/components/ai-info-banner"
 
 export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -123,6 +124,13 @@ export default function DashboardPage() {
   const pendingTasks = tasks.filter((t) => t.status === "pendiente" || t.status === "en-progreso").length
   const totalTasks = tasks.length
 
+  const today = new Date().toISOString().split("T")[0]
+  const overdueTasks = tasks.filter(
+    (t) => t.status !== "completada" && t.status !== "cancelada" && t.dueDate && t.dueDate < today
+  ).length
+
+  const isNewUser = !loading && totalTasks < 5 && moods.length < 3
+
   return (
     <AppLayout>
       <div className="container mx-auto px-4 pt-20 pb-20 md:pt-8 md:pb-8 max-w-7xl">
@@ -130,6 +138,29 @@ export default function DashboardPage() {
           <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
           <p className="text-sm md:text-base text-muted-foreground">Resumen de tu productividad</p>
         </div>
+
+        {/* Banner de bienvenida para usuarios nuevos */}
+        {isNewUser && (
+          <div className="mb-6">
+            <AiInfoBanner
+              variant="onboarding"
+              dismissId="dashboard-onboarding-v1"
+              title="Bienvenido a Timewize"
+              message="Para obtener análisis de IA precisos, registra al menos 7 días de actividad. Comienza creando tareas y registrando tu estado de ánimo diariamente. Cuantos más datos tengas, más precisas serán las recomendaciones personalizadas."
+            />
+          </div>
+        )}
+
+        {/* Aviso de tareas vencidas */}
+        {overdueTasks > 0 && (
+          <div className="mb-4">
+            <AiInfoBanner
+              variant="warning"
+              compact
+              message={`Tienes ${overdueTasks} tarea${overdueTasks > 1 ? "s" : ""} con fecha límite vencida. Revísalas en el módulo de Tareas y actualiza su estado.`}
+            />
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-2 lg:grid-cols-4 md:gap-4 mb-6 md:mb-8">
