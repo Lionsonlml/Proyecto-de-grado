@@ -20,7 +20,23 @@ interface TaskFormProps {
   onCancel: () => void
 }
 
+// Clampea un string numérico al rango [min, max]; usa fallback si no es un número válido
+function clampInt(val: string, min: number, max: number, fallback: number): string {
+  const n = parseInt(val, 10)
+  if (isNaN(n)) return String(fallback)
+  return String(Math.max(min, Math.min(max, n)))
+}
+
+const MAX_TITLE = 100
+const MAX_DESCRIPTION = 500
+const MAX_TAGS_TEXT = 150
+const MAX_SUBTASKS = 15
+const MAX_SUBTASK_TITLE = 100
+const MAX_DURATION_MIN = 480  // 8 horas
+
 export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
+  const today = new Date().toISOString().split("T")[0]
+
   const [title, setTitle] = useState(task?.title || "")
   const [description, setDescription] = useState(task?.description || "")
   const [category, setCategory] = useState<Task["category"]>(task?.category || "personal")
@@ -32,7 +48,6 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
   const [tags, setTags] = useState(task?.tags?.join(", ") || "")
   const [dueDateError, setDueDateError] = useState("")
 
-  // Campos nuevos
   const [recurrence, setRecurrence] = useState<Task["recurrence"]>(task?.recurrence || "none")
   const [recurrenceEnabled, setRecurrenceEnabled] = useState(
     task?.recurrence !== undefined && task.recurrence !== 'none'
@@ -43,7 +58,6 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
   const [subtasks, setSubtasks] = useState<SubTask[]>(task?.subtasks || [])
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("")
 
-  // Estados de IA
   const [aiLoading, setAiLoading] = useState(false)
   const [decomposeLoading, setDecomposeLoading] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<{
@@ -57,10 +71,10 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
   const handleDueDateChange = (val: string) => {
     setDueDate(val)
     if (val) {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      const todayDate = new Date()
+      todayDate.setHours(0, 0, 0, 0)
       const selected = new Date(val + 'T00:00:00')
-      if (selected < today) {
+      if (selected < todayDate) {
         setDueDateError("La fecha límite no puede ser en el pasado")
       } else {
         setDueDateError("")
@@ -82,12 +96,12 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
       if (res.ok) {
         const data = await res.json()
         setAiSuggestion(data)
-        if (data.estimatedMinutes) setEstimatedMinutes(String(data.estimatedMinutes))
+        if (data.estimatedMinutes) setEstimatedMinutes(String(Math.min(data.estimatedMinutes, MAX_DURATION_MIN)))
         if (data.priority) setPriority(data.priority as Task["priority"])
         if (data.category) setCategory(data.category as Task["category"])
         if (data.status) setStatus(data.status as Task["status"])
         if (data.tags && Array.isArray(data.tags) && data.tags.length > 0) {
-          setTags(data.tags.join(', '))
+          setTags(data.tags.slice(0, 5).join(', '))
         }
       }
     } catch {
@@ -109,11 +123,13 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
       if (res.ok) {
         const data = await res.json()
         if (data.subtasks && Array.isArray(data.subtasks)) {
-          const generated: SubTask[] = data.subtasks.map((s: any, i: number) => ({
-            id: `ai-${Date.now()}-${i}`,
-            title: s.title,
-            completed: false,
-          }))
+          const generated: SubTask[] = data.subtasks
+            .slice(0, MAX_SUBTASKS - subtasks.length)
+            .map((s: any, i: number) => ({
+              id: `ai-${Date.now()}-${i}`,
+              title: String(s.title).slice(0, MAX_SUBTASK_TITLE),
+              completed: false,
+            }))
           setSubtasks(prev => [...prev, ...generated])
         }
       }
@@ -125,10 +141,11 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
   }
 
   const addSubtask = () => {
-    if (!newSubtaskTitle.trim()) return
+    const trimmed = newSubtaskTitle.trim().slice(0, MAX_SUBTASK_TITLE)
+    if (!trimmed || subtasks.length >= MAX_SUBTASKS) return
     setSubtasks(prev => [
       ...prev,
-      { id: `manual-${Date.now()}`, title: newSubtaskTitle.trim(), completed: false },
+      { id: `manual-${Date.now()}`, title: trimmed, completed: false },
     ])
     setNewSubtaskTitle("")
   }
@@ -145,18 +162,20 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
     e.preventDefault()
     if (dueDateError) return
 
+    const parsedTags = tags
+      ? tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 5)
+      : undefined
+
     onSubmit({
-      title,
-      description: description || undefined,
+      title: title.trim(),
+      description: description.trim() || undefined,
       category,
       priority,
       status,
       estimatedMinutes: estimatedMinutes ? Number.parseInt(estimatedMinutes) : undefined,
       dueDate: dueDate || undefined,
       hour: hour ? Number.parseInt(hour) : 9,
-      tags: tags
-        ? tags.split(",").map((t) => t.trim()).filter(Boolean)
-        : undefined,
+      tags: parsedTags,
       recurrence: recurrenceEnabled ? recurrence : 'none',
       recurrenceDays: recurrence === 'custom' ? Number.parseInt(recurrenceDays) || 2 : undefined,
       recurrenceEnd: recurrenceEnabled && recurrenceEnd ? recurrenceEnd : undefined,
@@ -164,6 +183,8 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
       subtasks: subtasks.length > 0 ? subtasks : undefined,
     })
   }
+
+  const tagsCount = tags ? tags.split(",").map(t => t.trim()).filter(Boolean).length : 0
 
   return (
     <Card>
@@ -175,23 +196,28 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Título + botón IA */}
+
+          {/* Título */}
           <div className="space-y-2">
             <Label htmlFor="title">Título</Label>
             <Input
               id="title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value.slice(0, MAX_TITLE))}
               placeholder="Nombre de la tarea"
               required
+              maxLength={MAX_TITLE}
             />
+            {title.length > 80 && (
+              <p className="text-xs text-muted-foreground text-right">{title.length}/{MAX_TITLE}</p>
+            )}
             <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs"
-                disabled={!title || aiLoading}
+                disabled={!title.trim() || aiLoading}
                 onClick={handleAiSuggest}
               >
                 {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
@@ -202,7 +228,7 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs"
-                disabled={!title || decomposeLoading}
+                disabled={!title.trim() || decomposeLoading}
                 onClick={handleDecompose}
               >
                 {decomposeLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
@@ -222,17 +248,23 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
             )}
           </div>
 
+          {/* Descripción */}
           <div className="space-y-2">
             <Label htmlFor="description">Descripción</Label>
             <Textarea
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESCRIPTION))}
               placeholder="Detalles adicionales..."
               rows={3}
+              maxLength={MAX_DESCRIPTION}
             />
+            {description.length > 400 && (
+              <p className="text-xs text-muted-foreground text-right">{description.length}/{MAX_DESCRIPTION}</p>
+            )}
           </div>
 
+          {/* Categoría + Prioridad */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="category">Categoría</Label>
@@ -266,6 +298,7 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
             </div>
           </div>
 
+          {/* Estado + Duración */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="status">Estado</Label>
@@ -283,18 +316,24 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="estimatedMinutes">Tiempo estimado (min)</Label>
+              <Label htmlFor="estimatedMinutes">Duración (min, máx. 8 h)</Label>
               <Input
                 id="estimatedMinutes"
                 type="number"
                 value={estimatedMinutes}
                 onChange={(e) => setEstimatedMinutes(e.target.value)}
+                onBlur={(e) => {
+                  if (e.target.value) setEstimatedMinutes(clampInt(e.target.value, 1, MAX_DURATION_MIN, 60))
+                }}
                 placeholder="60"
                 min="1"
+                max={MAX_DURATION_MIN}
+                step="1"
               />
             </div>
           </div>
 
+          {/* Fecha límite + Hora */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dueDate">Fecha límite</Label>
@@ -303,6 +342,7 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
                 type="date"
                 value={dueDate}
                 onChange={(e) => handleDueDateChange(e.target.value)}
+                min={today}
                 className={cn(dueDateError && "border-destructive")}
               />
               {dueDateError && (
@@ -310,27 +350,42 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hour">Hora (0-23)</Label>
+              <Label htmlFor="hour">Hora de inicio (0–23)</Label>
               <Input
                 id="hour"
                 type="number"
                 value={hour}
                 onChange={(e) => setHour(e.target.value)}
+                onBlur={(e) => setHour(clampInt(e.target.value, 0, 23, 9))}
                 placeholder="9"
                 min="0"
                 max="23"
+                step="1"
               />
             </div>
           </div>
 
+          {/* Etiquetas */}
           <div className="space-y-2">
-            <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="tags">Etiquetas (separadas por comas, máx. 5)</Label>
+              {tagsCount > 0 && (
+                <span className={cn("text-xs", tagsCount > 5 ? "text-destructive" : "text-muted-foreground")}>
+                  {tagsCount}/5
+                </span>
+              )}
+            </div>
             <Input
               id="tags"
               value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              onChange={(e) => setTags(e.target.value.slice(0, MAX_TAGS_TEXT))}
               placeholder="urgente, importante, cliente"
+              maxLength={MAX_TAGS_TEXT}
+              className={cn(tagsCount > 5 && "border-destructive")}
             />
+            {tagsCount > 5 && (
+              <p className="text-xs text-destructive">Solo se guardarán las primeras 5 etiquetas</p>
+            )}
           </div>
 
           {/* Sección Repetir */}
@@ -367,14 +422,17 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
 
                 {recurrence === 'custom' && (
                   <div className="space-y-2">
-                    <Label htmlFor="recurrenceDays">Cada cuántos días</Label>
+                    <Label htmlFor="recurrenceDays">Cada cuántos días (1–365)</Label>
                     <Input
                       id="recurrenceDays"
                       type="number"
                       value={recurrenceDays}
                       onChange={(e) => setRecurrenceDays(e.target.value)}
+                      onBlur={(e) => setRecurrenceDays(clampInt(e.target.value, 1, 365, 2))}
                       placeholder="2"
                       min="1"
+                      max="365"
+                      step="1"
                     />
                   </div>
                 )}
@@ -386,6 +444,7 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
                     type="date"
                     value={recurrenceEnd}
                     onChange={(e) => setRecurrenceEnd(e.target.value)}
+                    min={dueDate || today}
                   />
                 </div>
               </div>
@@ -409,7 +468,7 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
           {/* Subtareas */}
           {subtasks.length > 0 && (
             <div className="space-y-2">
-              <Label>Subtareas</Label>
+              <Label>Subtareas ({subtasks.length}/{MAX_SUBTASKS})</Label>
               <div className="space-y-1.5">
                 {subtasks.map((sub) => (
                   <div key={sub.id} className="flex items-center gap-2">
@@ -435,27 +494,32 @@ export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
             </div>
           )}
 
-          {/* Añadir subtarea manualmente */}
-          <div className="flex gap-2">
-            <Input
-              value={newSubtaskTitle}
-              onChange={(e) => setNewSubtaskTitle(e.target.value)}
-              placeholder="Añadir subtarea..."
-              className="text-sm"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addSubtask()
-                }
-              }}
-            />
-            <Button type="button" variant="outline" size="sm" onClick={addSubtask} disabled={!newSubtaskTitle.trim()}>
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          {/* Añadir subtarea */}
+          {subtasks.length < MAX_SUBTASKS ? (
+            <div className="flex gap-2">
+              <Input
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value.slice(0, MAX_SUBTASK_TITLE))}
+                placeholder="Añadir subtarea..."
+                className="text-sm"
+                maxLength={MAX_SUBTASK_TITLE}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addSubtask()
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" size="sm" onClick={addSubtask} disabled={!newSubtaskTitle.trim()}>
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Máximo {MAX_SUBTASKS} subtareas alcanzado</p>
+          )}
 
           <div className="flex gap-2 pt-4">
-            <Button type="submit" className="flex-1" disabled={!!dueDateError}>
+            <Button type="submit" className="flex-1" disabled={!!dueDateError || !title.trim()}>
               {task ? "Actualizar" : "Crear"} Tarea
             </Button>
             <Button type="button" variant="outline" onClick={onCancel}>

@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Brain, Loader2 } from "lucide-react"
+import { Brain, Loader2, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 function getStrength(pwd: string): { level: number; label: string; color: string } {
   let score = 0
@@ -25,9 +26,12 @@ function getStrength(pwd: string): { level: number; label: string; color: string
 function ResetPasswordContent() {
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
   const [done, setDone] = useState(false)
+  const [confirmTouched, setConfirmTouched] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -110,15 +114,28 @@ function ResetPasswordContent() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="password">Nueva contraseña</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Mín. 8 caracteres, 1 mayúscula, 1 número"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value.slice(0, 128))}
+                    required
+                    disabled={loading}
+                    className="pr-10"
+                    maxLength={128}
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-0 top-0 h-full px-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {password && (
                   <div className="space-y-1">
                     <div className="flex gap-1">
@@ -136,15 +153,32 @@ function ResetPasswordContent() {
 
               <div className="space-y-2">
                 <Label htmlFor="confirm">Confirmar contraseña</Label>
-                <Input
-                  id="confirm"
-                  type="password"
-                  placeholder="••••••••"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  disabled={loading}
-                />
+                <div className="relative">
+                  <Input
+                    id="confirm"
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value.slice(0, 128))}
+                    onBlur={() => setConfirmTouched(true)}
+                    required
+                    disabled={loading}
+                    className={cn("pr-10", confirmTouched && confirm.length > 0 && password !== confirm && "border-destructive")}
+                    maxLength={128}
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowConfirm(v => !v)}
+                    className="absolute right-0 top-0 h-full px-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showConfirm ? "Ocultar contraseña" : "Ver contraseña"}
+                  >
+                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {confirmTouched && confirm.length > 0 && password !== confirm && (
+                  <p className="text-xs text-destructive">Las contraseñas no coinciden</p>
+                )}
               </div>
 
               {errorMsg && (

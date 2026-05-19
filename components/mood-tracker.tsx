@@ -12,6 +12,7 @@ import type { Mood } from "@/lib/types"
 import { Frown, Meh, Smile, Laugh, Angry } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+
 interface MoodTrackerProps {
   onSubmit: (mood: Omit<Mood, "id" | "timestamp">) => void
 }
@@ -125,13 +126,21 @@ export function MoodTracker({ onSubmit }: MoodTrackerProps) {
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Notas (opcional)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="notes">Notas (opcional)</Label>
+              {notes.length > 200 && (
+                <span className={cn("text-xs", notes.length >= 300 ? "text-destructive" : "text-muted-foreground")}>
+                  {notes.length}/300
+                </span>
+              )}
+            </div>
             <Textarea
               id="notes"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => setNotes(e.target.value.slice(0, 300))}
               placeholder="¿Qué está afectando tu estado de ánimo?"
               rows={3}
+              maxLength={300}
             />
           </div>
 

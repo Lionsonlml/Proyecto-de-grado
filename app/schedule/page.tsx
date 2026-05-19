@@ -451,10 +451,11 @@ export default function SchedulePage() {
               <Input
                 id="block-title"
                 value={newBlockTitle}
-                onChange={(e) => setNewBlockTitle(e.target.value)}
+                onChange={(e) => setNewBlockTitle(e.target.value.slice(0, 100))}
                 placeholder="Nombre del bloque..."
                 required
                 autoFocus
+                maxLength={100}
               />
             </div>
           )}
@@ -462,25 +463,36 @@ export default function SchedulePage() {
           {/* Campos hora y duración */}
           <div className={`grid gap-3 ${addBlockMode === "nueva" ? "grid-cols-3" : "grid-cols-2"}`}>
             <div className="space-y-1.5">
-              <Label htmlFor="block-hour">Hora (0-23)</Label>
+              <Label htmlFor="block-hour">Hora (0–23)</Label>
               <Input
                 id="block-hour"
                 type="number"
                 min="0"
                 max="23"
+                step="1"
                 value={newBlockHour}
                 onChange={(e) => setNewBlockHour(e.target.value)}
+                onBlur={(e) => {
+                  const n = parseInt(e.target.value, 10)
+                  setNewBlockHour(String(isNaN(n) ? 9 : Math.max(0, Math.min(23, n))))
+                }}
               />
             </div>
             {addBlockMode === "nueva" && (
               <div className="space-y-1.5">
-                <Label htmlFor="block-duration">Duración (min)</Label>
+                <Label htmlFor="block-duration">Duración (min, máx. 8h)</Label>
                 <Input
                   id="block-duration"
                   type="number"
                   min="1"
+                  max="480"
+                  step="1"
                   value={newBlockDuration}
                   onChange={(e) => setNewBlockDuration(e.target.value)}
+                  onBlur={(e) => {
+                    const n = parseInt(e.target.value, 10)
+                    setNewBlockDuration(String(isNaN(n) ? 60 : Math.max(1, Math.min(480, n))))
+                  }}
                 />
               </div>
             )}
@@ -500,12 +512,18 @@ export default function SchedulePage() {
             )}
             {addBlockMode === "existente" && (
               <div className="space-y-1.5">
-                <Label>Nueva duración (min)</Label>
+                <Label>Nueva duración (min, máx. 8h)</Label>
                 <Input
                   type="number"
                   min="1"
+                  max="480"
+                  step="1"
                   value={newBlockDuration}
                   onChange={(e) => setNewBlockDuration(e.target.value)}
+                  onBlur={(e) => {
+                    const n = parseInt(e.target.value, 10)
+                    setNewBlockDuration(String(isNaN(n) ? 60 : Math.max(1, Math.min(480, n))))
+                  }}
                 />
               </div>
             )}
