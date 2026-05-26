@@ -72,162 +72,187 @@ function getShortDate(ts: string): string {
 
 // ─── Componente principal ───────────────────────────────────────────────────
 
-export function MoodPatterns({ moods }: MoodPatternsProps) {
-  // ── 1. Si no hay datos suficientes ──────────────────────────────────────
-  if (moods.length < 3) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Patrones emocionales
-          </CardTitle>
-          <CardDescription>
-            Necesitas al menos 3 registros para ver patrones. Llevas {moods.length}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground max-w-sm">
-              Registra tu estado de ánimo regularmente. Cuantos más registros tengas,
-              más precisos serán los patrones que detectemos.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+// ─── Helpers de cálculo (puros, fuera del componente) ───────────────────────
 
-  // ── 2. Cálculos derivados ───────────────────────────────────────────────
+const avgRound = (values: number[]): number =>
+  +(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1)
 
-  const sortedByDate = useMemo(
-    () => [...moods].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
-    [moods],
+function buildSortedByDate(moods: Mood[]): Mood[] {
+  return [...moods].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   )
+}
 
-  // Últimos 14 para la línea temporal
-  const recent14 = sortedByDate.slice(-14).map((m, i) => ({
+function buildRecent14(sortedMoods: Mood[]) {
+  return sortedMoods.slice(-14).map((m, i) => ({
     idx: i + 1,
     date: getShortDate(m.timestamp),
     Energía: m.energy,
     Concentración: m.focus,
     Estrés: m.stress,
   }))
+}
 
-  // Promedios por hora del día (0-23 → 4 bloques: 6-12, 12-18, 18-24, 0-6)
-  const byHour = useMemo(() => {
-    const buckets: Record<number, { e: number[]; f: number[]; s: number[] }> = {}
-    for (const m of moods) {
-      const h = getHourFromTimestamp(m.timestamp)
-      if (!buckets[h]) buckets[h] = { e: [], f: [], s: [] }
-      buckets[h].e.push(m.energy)
-      buckets[h].f.push(m.focus)
-      buckets[h].s.push(m.stress)
+function buildByHour(moods: Mood[]) {
+  const buckets: Record<number, { e: number[]; f: number[]; s: number[] }> = {}
+  for (const m of moods) {
+    const h = getHourFromTimestamp(m.timestamp)
+    if (!buckets[h]) buckets[h] = { e: [], f: [], s: [] }
+    buckets[h].e.push(m.energy)
+    buckets[h].f.push(m.focus)
+    buckets[h].s.push(m.stress)
+  }
+  return Object.entries(buckets)
+    .map(([h, d]) => ({
+      hour: `${String(h).padStart(2, "0")}h`,
+      hourNum: Number(h),
+      Energía: avgRound(d.e),
+      Concentración: avgRound(d.f),
+      Estrés: avgRound(d.s),
+      n: d.e.length,
+    }))
+    .sort((a, b) => a.hourNum - b.hourNum)
+}
+
+function buildMoodDistribution(moods: Mood[]) {
+  const counts: Record<Mood["mood"], number> = {
+    "muy-mal": 0, "mal": 0, "neutral": 0, "bien": 0, "excelente": 0,
+  }
+  moods.forEach(m => { counts[m.mood]++ })
+  return (Object.entries(counts) as [Mood["mood"], number][])
+    .filter(([, count]) => count > 0)
+    .map(([mood, count]) => ({
+      name: MOOD_LABELS[mood],
+      value: count,
+      color: MOOD_COLORS[mood],
+      percent: Math.round((count / moods.length) * 100),
+    }))
+}
+
+function findBestHour(byHour: ReturnType<typeof buildByHour>) {
+  let best: { hour: number; score: number; n: number } | null = null
+  for (const slot of byHour) {
+    const score = slot.Energía + slot.Concentración - slot.Estrés
+    if (!best || score > best.score) {
+      best = { hour: slot.hourNum, score, n: slot.n }
     }
-    return Object.entries(buckets)
-      .map(([h, d]) => ({
-        hour: `${String(h).padStart(2, "0")}h`,
-        hourNum: Number(h),
-        Energía: +(d.e.reduce((a, b) => a + b, 0) / d.e.length).toFixed(1),
-        Concentración: +(d.f.reduce((a, b) => a + b, 0) / d.f.length).toFixed(1),
-        Estrés: +(d.s.reduce((a, b) => a + b, 0) / d.s.length).toFixed(1),
-        n: d.e.length,
-      }))
-      .sort((a, b) => a.hourNum - b.hourNum)
-  }, [moods])
+  }
+  return best
+}
 
-  // Distribución de moods (pie chart)
-  const moodDistribution = useMemo(() => {
-    const counts: Record<Mood["mood"], number> = {
-      "muy-mal": 0, "mal": 0, "neutral": 0, "bien": 0, "excelente": 0,
-    }
-    moods.forEach(m => { counts[m.mood]++ })
-    return (Object.entries(counts) as [Mood["mood"], number][])
-      .filter(([, count]) => count > 0)
-      .map(([mood, count]) => ({
-        name: MOOD_LABELS[mood],
-        value: count,
-        color: MOOD_COLORS[mood],
-        percent: Math.round((count / moods.length) * 100),
-      }))
-  }, [moods])
+function calculateTrend(sortedMoods: Mood[]): number {
+  if (sortedMoods.length < 3) return 0
+  const values = sortedMoods.map(m => MOOD_VALUES[m.mood])
+  const n = values.length
+  const sumX = (n * (n - 1)) / 2
+  const sumY = values.reduce((a, b) => a + b, 0)
+  const sumXY = values.reduce((a, b, i) => a + i * b, 0)
+  const sumXX = (n * (n - 1) * (2 * n - 1)) / 6
+  const denom = n * sumXX - sumX * sumX
+  if (denom === 0) return 0
+  return (n * sumXY - sumX * sumY) / denom
+}
 
-  // Stats principales
-  const stats = useMemo(() => {
-    const total = moods.length
-    const withTest = moods.filter(m => m.concentrationScore != null)
-    const avgTestScore = withTest.length > 0
-      ? Math.round(withTest.reduce((s, m) => s + (m.concentrationScore ?? 0), 0) / withTest.length)
-      : null
+function buildStats(args: {
+  moods: Mood[]
+  byHour: ReturnType<typeof buildByHour>
+  moodDistribution: ReturnType<typeof buildMoodDistribution>
+  sortedByDate: Mood[]
+}) {
+  const { moods, byHour, moodDistribution, sortedByDate } = args
+  const withTest = moods.filter(m => m.concentrationScore != null)
+  const avgTestScore = withTest.length > 0
+    ? Math.round(withTest.reduce((s, m) => s + (m.concentrationScore ?? 0), 0) / withTest.length)
+    : null
+  const top = [...moodDistribution].sort((a, b) => b.value - a.value)[0]
+  return {
+    total: moods.length,
+    avgTestScore,
+    bestHour: findBestHour(byHour),
+    top,
+    trend: calculateTrend(sortedByDate),
+    withTestCount: withTest.length,
+  }
+}
 
-    // Mejor hora: la que tenga mayor (energy + focus - stress) en promedio
-    let bestHour: { hour: number; score: number; n: number } | null = null
-    for (const slot of byHour) {
-      const score = slot.Energía + slot.Concentración - slot.Estrés
-      if (!bestHour || score > bestHour.score) {
-        bestHour = { hour: slot.hourNum, score, n: slot.n }
-      }
-    }
-
-    // Mood predominante
-    const top = [...moodDistribution].sort((a, b) => b.value - a.value)[0]
-
-    // Tendencia general (regresión simple sobre mood numérico)
-    const trend = (() => {
-      if (sortedByDate.length < 3) return 0
-      const values = sortedByDate.map(m => MOOD_VALUES[m.mood])
-      const n = values.length
-      const sumX = (n * (n - 1)) / 2
-      const sumY = values.reduce((a, b) => a + b, 0)
-      const sumXY = values.reduce((a, b, i) => a + i * b, 0)
-      const sumXX = (n * (n - 1) * (2 * n - 1)) / 6
-      const denom = n * sumXX - sumX * sumX
-      if (denom === 0) return 0
-      return (n * sumXY - sumX * sumY) / denom
-    })()
-
-    return { total, avgTestScore, bestHour, top, trend, withTestCount: withTest.length }
-  }, [moods, byHour, moodDistribution, sortedByDate])
-
-  // Top factores (separados por polaridad)
-  const topFactors = useMemo(() => {
-    const counts: Record<string, number> = {}
-    moods.forEach(m => {
-      (m.contextFactors ?? []).forEach(f => {
-        if (f.startsWith("__test:")) return
-        counts[f] = (counts[f] || 0) + 1
-      })
+function buildTopFactors(moods: Mood[]) {
+  const counts: Record<string, number> = {}
+  moods.forEach(m => {
+    (m.contextFactors ?? []).forEach(f => {
+      if (f.startsWith("__test:")) return
+      counts[f] = (counts[f] || 0) + 1
     })
-    const all = Object.entries(counts)
-      .map(([id, count]) => ({
-        id, count,
-        def: FACTOR_CATALOG[id],
-      }))
-      .filter(x => x.def)
-      .sort((a, b) => b.count - a.count)
+  })
+  const all = Object.entries(counts)
+    .map(([id, count]) => ({ id, count, def: FACTOR_CATALOG[id] }))
+    .filter(x => x.def)
+    .sort((a, b) => b.count - a.count)
 
-    return {
-      positive: all.filter(x => x.def!.polarity === "+").slice(0, 5),
-      negative: all.filter(x => x.def!.polarity === "-").slice(0, 5),
-    }
-  }, [moods])
+  return {
+    positive: all.filter(x => x.def!.polarity === "+").slice(0, 5),
+    negative: all.filter(x => x.def!.polarity === "-").slice(0, 5),
+  }
+}
 
-  // Discrepancias subjetivo vs objetivo
-  const discrepancies = useMemo(() => {
-    return moods
-      .filter(m => m.concentrationScore != null)
-      .map(m => {
-        const sliderNorm = (m.focus / 5) * 100
-        const diff = (m.concentrationScore ?? 0) - sliderNorm
-        return { mood: m, diff, sliderNorm, objScore: m.concentrationScore ?? 0 }
-      })
-      .filter(x => Math.abs(x.diff) >= 25)
-      .sort((a, b) => new Date(b.mood.timestamp).getTime() - new Date(a.mood.timestamp).getTime())
-      .slice(0, 5)
-  }, [moods])
+function buildDiscrepancies(moods: Mood[]) {
+  return moods
+    .filter(m => m.concentrationScore != null)
+    .map(m => {
+      const sliderNorm = (m.focus / 5) * 100
+      const diff = (m.concentrationScore ?? 0) - sliderNorm
+      return { mood: m, diff, sliderNorm, objScore: m.concentrationScore ?? 0 }
+    })
+    .filter(x => Math.abs(x.diff) >= 25)
+    .sort((a, b) => new Date(b.mood.timestamp).getTime() - new Date(a.mood.timestamp).getTime())
+    .slice(0, 5)
+}
 
-  // ── 3. Render ────────────────────────────────────────────────────────────
+// ─── Empty state component ───────────────────────────────────────────────────
+
+function EmptyPatterns({ count }: { count: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="h-5 w-5" />
+          Patrones emocionales
+        </CardTitle>
+        <CardDescription>
+          Necesitas al menos 3 registros para ver patrones. Llevas {count}.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Registra tu estado de ánimo regularmente. Cuantos más registros tengas,
+            más precisos serán los patrones que detectemos.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export function MoodPatterns({ moods }: MoodPatternsProps) {
+  // Hooks SIEMPRE antes de cualquier return condicional (Rules of Hooks)
+  const sortedByDate     = useMemo(() => buildSortedByDate(moods), [moods])
+  const recent14         = useMemo(() => buildRecent14(sortedByDate), [sortedByDate])
+  const byHour           = useMemo(() => buildByHour(moods), [moods])
+  const moodDistribution = useMemo(() => buildMoodDistribution(moods), [moods])
+  const stats            = useMemo(
+    () => buildStats({ moods, byHour, moodDistribution, sortedByDate }),
+    [moods, byHour, moodDistribution, sortedByDate],
+  )
+  const topFactors       = useMemo(() => buildTopFactors(moods), [moods])
+  const discrepancies    = useMemo(() => buildDiscrepancies(moods), [moods])
+
+  // Early return DESPUÉS de los hooks
+  if (moods.length < 3) {
+    return <EmptyPatterns count={moods.length} />
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4 md:space-y-6">

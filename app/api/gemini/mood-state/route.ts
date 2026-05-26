@@ -22,33 +22,53 @@ function normalizeMoodType(raw: string): string {
   return "neutral"
 }
 
+// Tabla de rangos para etiqueta de mood — reemplaza cadena de ternarios
+const MOOD_LABEL_RANGES: ReadonlyArray<readonly [number, string]> = [
+  [4.5, "muy positivo"],
+  [3.5, "positivo"],
+  [2.5, "neutral"],
+  [1.5, "bajo"],
+  [0,   "muy bajo"],
+]
+
+function getMoodLabel(avgMood: number): string {
+  for (const [min, label] of MOOD_LABEL_RANGES) {
+    if (avgMood >= min) return label
+  }
+  return "muy bajo"
+}
+
+function getTrendText(trend: number): string {
+  if (trend > 0.15) return "con tendencia al alza"
+  if (trend < -0.15) return "con tendencia a la baja"
+  return "estable"
+}
+
+function getContextMessage(s: {
+  avgEnergy: number; avgFocus: number; avgStress: number
+}): string {
+  if (s.avgStress >= 4) {
+    return "Tu nivel de estrés ha estado alto — considera incorporar pausas o respiración consciente."
+  }
+  if (s.avgEnergy <= 2) {
+    return "Tu energía promedio ha estado baja — revisa sueño y alimentación."
+  }
+  if (s.avgFocus >= 4 && s.avgStress <= 2) {
+    return "Estás en un buen momento de productividad y calma — buen ritmo para trabajo profundo."
+  }
+  if (s.avgEnergy >= 4 && s.avgFocus >= 4) {
+    return "Tu energía y concentración están altas — aprovecha para tareas exigentes."
+  }
+  return "Mantén el registro diario para detectar mejor tus patrones."
+}
+
 function buildHeuristicFallback(s: {
   avgMood: number; avgEnergy: number; avgFocus: number; avgStress: number
   trend: number; count: number
 }): string {
-  const moodLabel = s.avgMood >= 4.5 ? "muy positivo"
-    : s.avgMood >= 3.5 ? "positivo"
-    : s.avgMood >= 2.5 ? "neutral"
-    : s.avgMood >= 1.5 ? "bajo"
-    : "muy bajo"
-
-  const trendText = s.trend > 0.15 ? "con tendencia al alza"
-    : s.trend < -0.15 ? "con tendencia a la baja"
-    : "estable"
-
-  let context = ""
-  if (s.avgStress >= 4) {
-    context = "Tu nivel de estrés ha estado alto — considera incorporar pausas o respiración consciente."
-  } else if (s.avgEnergy <= 2) {
-    context = "Tu energía promedio ha estado baja — revisa sueño y alimentación."
-  } else if (s.avgFocus >= 4 && s.avgStress <= 2) {
-    context = "Estás en un buen momento de productividad y calma — buen ritmo para trabajo profundo."
-  } else if (s.avgEnergy >= 4 && s.avgFocus >= 4) {
-    context = "Tu energía y concentración están altas — aprovecha para tareas exigentes."
-  } else {
-    context = "Mantén el registro diario para detectar mejor tus patrones."
-  }
-
+  const moodLabel = getMoodLabel(s.avgMood)
+  const trendText = getTrendText(s.trend)
+  const context = getContextMessage(s)
   return `Tu estado emocional promedio de los últimos ${s.count} registros es ${moodLabel} ${trendText}. ${context}`
 }
 
