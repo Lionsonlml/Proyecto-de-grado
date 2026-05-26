@@ -6,6 +6,7 @@ import { MoodTracker } from "@/components/mood-tracker"
 import { MoodHistory } from "@/components/mood-history"
 import { MoodPatterns } from "@/components/mood-patterns"
 import { MoodSummary } from "@/components/mood-summary"
+import { MoodAiState } from "@/components/mood-ai-state"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { Mood } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
@@ -148,6 +149,7 @@ export default function MoodsPage() {
 
             {/* ── Tab 2: Patrones ──────────────────────────────── */}
             <TabsContent value="patrones" className="mt-0 space-y-4 md:space-y-6">
+              <MoodAiState refreshKey={moods.length} />
               <MoodSummary moods={moods} />
               <MoodPatterns moods={moods} />
             </TabsContent>

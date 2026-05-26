@@ -5,7 +5,7 @@ import { fetchWithCache, invalidateCache } from "@/lib/client-cache"
 import { StatsCard } from "@/components/stats-card"
 import { QuickActions } from "@/components/quick-actions"
 import { RecentTasks } from "@/components/recent-tasks"
-import { MoodAiState } from "@/components/mood-ai-state"
+import { MoodSummary } from "@/components/mood-summary"
 import { ProductivityCharts } from "@/components/productivity-charts"
 import { MotivationalQuotes } from "@/components/motivational-quotes"
 import type { Task, Mood } from "@/lib/types"
@@ -203,7 +203,7 @@ export default function DashboardPage() {
 
           <div className="space-y-4 md:space-y-6">
             <QuickActions />
-            <MoodAiState refreshKey={moods.length} />
+            <MoodSummary moods={moods} />
           </div>
         </div>
 
