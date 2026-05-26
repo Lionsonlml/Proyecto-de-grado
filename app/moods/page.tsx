@@ -4,8 +4,11 @@ import { useState, useEffect } from "react"
 import { fetchWithCache, invalidateCache } from "@/lib/client-cache"
 import { MoodTracker } from "@/components/mood-tracker"
 import { MoodHistory } from "@/components/mood-history"
+import { MoodPatterns } from "@/components/mood-patterns"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { Mood } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
+import { PlusCircle, BarChart3 } from "lucide-react"
 
 export default function MoodsPage() {
   const [moods, setMoods] = useState<Mood[]>([])
@@ -100,32 +103,53 @@ export default function MoodsPage() {
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="mb-6 md:mb-8">
             <h1 className="text-2xl md:text-3xl font-bold">Estados de Ánimo</h1>
-            <p className="text-sm md:text-base text-muted-foreground">Registra y analiza cómo te sientes</p>
+            <p className="text-sm md:text-base text-muted-foreground">
+              Registra cómo te sientes y descubre tus patrones emocionales
+            </p>
           </div>
 
-          <div className="grid gap-4 md:gap-6">
-            <MoodTracker onSubmit={handleSubmit} />
+          <Tabs defaultValue="registrar" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4 md:mb-6">
+              <TabsTrigger value="registrar" className="gap-2">
+                <PlusCircle className="h-4 w-4" />
+                <span>Registrar</span>
+              </TabsTrigger>
+              <TabsTrigger value="patrones" className="gap-2">
+                <BarChart3 className="h-4 w-4" />
+                <span>Patrones</span>
+              </TabsTrigger>
+            </TabsList>
 
-            {saveSuccess && (
-              <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400 text-sm font-medium">
-                Estado de ánimo guardado exitosamente
-              </div>
-            )}
+            {/* ── Tab 1: Registrar ─────────────────────────────── */}
+            <TabsContent value="registrar" className="space-y-4 md:space-y-6 mt-0">
+              <MoodTracker onSubmit={handleSubmit} />
 
-            {saveError && (
-              <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm font-medium">
-                Error al guardar: {saveError}
-              </div>
-            )}
+              {saveSuccess && (
+                <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400 text-sm font-medium">
+                  Estado de ánimo guardado exitosamente
+                </div>
+              )}
 
-            {loadError && (
-              <div className="p-3 rounded-lg border border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400 text-sm">
-                Error al cargar registros: {loadError}
-              </div>
-            )}
+              {saveError && (
+                <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm font-medium">
+                  Error al guardar: {saveError}
+                </div>
+              )}
 
-            <MoodHistory moods={moods} />
-          </div>
+              {loadError && (
+                <div className="p-3 rounded-lg border border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400 text-sm">
+                  Error al cargar registros: {loadError}
+                </div>
+              )}
+
+              <MoodHistory moods={moods} />
+            </TabsContent>
+
+            {/* ── Tab 2: Patrones ──────────────────────────────── */}
+            <TabsContent value="patrones" className="mt-0">
+              <MoodPatterns moods={moods} />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </AppLayout>
