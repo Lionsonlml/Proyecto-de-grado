@@ -1,15 +1,28 @@
 import crypto from 'crypto'
 
-const ALGORITHM = 'aes-256-cbc'
-const KEY_LENGTH = 32 // 256 bits
-const IV_LENGTH = 16 // 128 bits
+// ─── Configuración ────────────────────────────────────────────────────────────
+// Nuevo cifrado: AES-256-GCM (AEAD — autenticación + cifrado en una sola operación)
+const GCM_ALGORITHM = 'aes-256-gcm'
+const GCM_IV_LENGTH = 12 // recomendado para GCM (96 bits)
+const GCM_AUTHTAG_LENGTH = 16 // 128 bits
 
-// Salt constante intencional para compatibilidad con datos ya cifrados.
-// La fortaleza criptográfica se garantiza por la entropía de ENCRYPTION_KEY,
-// no por el salt. Cambiar este valor invalidaría todos los datos previos.
+// Legacy: AES-256-CBC. Solo para LEER datos antiguos. Las nuevas escrituras
+// usan GCM. Cuando todos los datos se hayan re-cifrado, este bloque puede
+// eliminarse junto con la decryptLegacyCBC().
+const LEGACY_CBC_ALGORITHM = 'aes-256-cbc'
+const LEGACY_CBC_IV_LENGTH = 16
+
+const KEY_LENGTH = 32 // 256 bits
+
+// Salt constante intencional. La entropía de ENCRYPTION_KEY garantiza
+// la fortaleza; cambiarlo invalidaría datos previos.
 const SCRYPT_SALT = 'salt'
 
-// Generar una clave de cifrado desde la variable de entorno
+// Prefijo de versión para distinguir formato GCM (nuevo) de CBC (legacy)
+const GCM_VERSION_PREFIX = 'v2:'
+
+// ─── Helpers de clave ─────────────────────────────────────────────────────────
+
 function getEncryptionKey(): Buffer {
   const key = process.env.ENCRYPTION_KEY
   if (!key || key.length < 16) {
@@ -21,70 +34,137 @@ function getEncryptionKey(): Buffer {
   return crypto.scryptSync(key, SCRYPT_SALT, KEY_LENGTH)
 }
 
-// Cifrar datos sensibles
+// ─── Cifrado: SIEMPRE AES-256-GCM (autenticado) ──────────────────────────────
+
 export function encryptSensitiveData(data: string): string {
   try {
     const key = getEncryptionKey()
-    const iv = crypto.randomBytes(IV_LENGTH)
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-    
+    const iv = crypto.randomBytes(GCM_IV_LENGTH)
+    const cipher = crypto.createCipheriv(GCM_ALGORITHM, key, iv)
+
     let encrypted = cipher.update(data, 'utf8', 'hex')
     encrypted += cipher.final('hex')
-    
-    // Combinar IV y datos cifrados
-    return iv.toString('hex') + ':' + encrypted
+    const authTag = cipher.getAuthTag()
+
+    // Formato: v2:<iv-hex>:<authTag-hex>:<ciphertext-hex>
+    return `${GCM_VERSION_PREFIX}${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
   } catch (error) {
     console.error('Error cifrando datos:', error)
     throw new Error('Error al cifrar datos sensibles')
   }
 }
 
-// Descifrar datos sensibles
+// ─── Descifrado: detecta formato GCM vs CBC legacy ──────────────────────────
+
 export function decryptSensitiveData(encryptedData: string): string {
   try {
-    // Si no está cifrado, devolver tal como está
-    if (!isEncrypted(encryptedData)) {
-      return encryptedData
+    if (!encryptedData || typeof encryptedData !== 'string') return encryptedData
+
+    // ── Formato nuevo: AES-256-GCM ──
+    if (encryptedData.startsWith(GCM_VERSION_PREFIX)) {
+      return decryptGCM(encryptedData)
     }
 
-    const key = getEncryptionKey()
-    const parts = encryptedData.split(':')
-    
-    if (parts.length !== 2) {
-      console.warn('Formato de datos cifrados inválido, devolviendo datos originales')
-      return encryptedData
-    }
-    
-    const iv = Buffer.from(parts[0], 'hex')
-    const encrypted = parts[1]
-
-    // Validar que IV y payload tienen formato hex válido y longitudes esperadas
-    const ivHex = parts[0]
-    const payloadHex = parts[1]
-
-    const hexRegex = /^[0-9a-fA-F]+$/
-    if (ivHex.length !== IV_LENGTH * 2 || !hexRegex.test(ivHex) || !hexRegex.test(payloadHex)) {
-      console.warn('Datos cifrados con formato inesperado; devolviendo datos originales')
-      return encryptedData
+    // ── Formato legacy: AES-256-CBC ──
+    // Solo se mantiene para leer datos antiguos. Se elimina cuando ya
+    // no queden datos cifrados con el formato anterior.
+    if (isLegacyCBCFormat(encryptedData)) {
+      return decryptLegacyCBC(encryptedData)
     }
 
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-
-    let decrypted = ''
-    try {
-      decrypted = decipher.update(encrypted, 'hex', 'utf8')
-      decrypted += decipher.final('utf8')
-    } catch (err) {
-      // No propagar errores de descifrado (clave inválida, datos corruptos, etc.)
-      console.error('Error descifrando datos:', (err as Error).message)
-      return '[Datos no disponibles]'
-    }
-
-    return decrypted
+    // No cifrado o formato no reconocido: devolver tal cual
+    return encryptedData
   } catch (error) {
     console.error('Error inesperado en decryptSensitiveData:', (error as Error).message)
     return '[Datos no disponibles]'
   }
+}
+
+// ─── Descifrado GCM ──────────────────────────────────────────────────────────
+
+function decryptGCM(encryptedData: string): string {
+  try {
+    const payload = encryptedData.slice(GCM_VERSION_PREFIX.length)
+    const parts = payload.split(':')
+    if (parts.length !== 3) {
+      console.warn('Formato GCM inválido')
+      return '[Datos no disponibles]'
+    }
+
+    const [ivHex, authTagHex, ciphertextHex] = parts
+    const hexRegex = /^[0-9a-fA-F]+$/
+
+    if (
+      ivHex.length !== GCM_IV_LENGTH * 2 ||
+      authTagHex.length !== GCM_AUTHTAG_LENGTH * 2 ||
+      !hexRegex.test(ivHex) ||
+      !hexRegex.test(authTagHex) ||
+      !hexRegex.test(ciphertextHex)
+    ) {
+      console.warn('Formato GCM con longitudes inesperadas')
+      return '[Datos no disponibles]'
+    }
+
+    const key = getEncryptionKey()
+    const iv = Buffer.from(ivHex, 'hex')
+    const authTag = Buffer.from(authTagHex, 'hex')
+
+    const decipher = crypto.createDecipheriv(GCM_ALGORITHM, key, iv)
+    decipher.setAuthTag(authTag)
+
+    let decrypted = decipher.update(ciphertextHex, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    return decrypted
+  } catch (err) {
+    console.error('Error descifrando GCM:', (err as Error).message)
+    return '[Datos no disponibles]'
+  }
+}
+
+// ─── Descifrado legacy CBC (compatibilidad hacia atrás) ─────────────────────
+// NOTA DE SEGURIDAD: AES-CBC no provee autenticación. Esta función SOLO
+// se usa para leer datos previamente cifrados con la versión anterior. Las
+// nuevas escrituras usan GCM (ver encryptSensitiveData). Se eliminará cuando
+// todos los datos legacy hayan migrado tras una pasada de re-encriptación. // NOSONAR
+function decryptLegacyCBC(encryptedData: string): string {
+  try {
+    const parts = encryptedData.split(':')
+    if (parts.length !== 2) return '[Datos no disponibles]'
+
+    const [ivHex, payloadHex] = parts
+    const hexRegex = /^[0-9a-fA-F]+$/
+    if (
+      ivHex.length !== LEGACY_CBC_IV_LENGTH * 2 ||
+      !hexRegex.test(ivHex) ||
+      !hexRegex.test(payloadHex)
+    ) {
+      return '[Datos no disponibles]'
+    }
+
+    const key = getEncryptionKey()
+    const iv = Buffer.from(ivHex, 'hex')
+    // NOSONAR: legacy decryption path — see comment above
+    const decipher = crypto.createDecipheriv(LEGACY_CBC_ALGORITHM, key, iv)
+    let decrypted = decipher.update(payloadHex, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    return decrypted
+  } catch (err) {
+    console.error('Error descifrando CBC legacy:', (err as Error).message)
+    return '[Datos no disponibles]'
+  }
+}
+
+function isLegacyCBCFormat(data: string): boolean {
+  if (!data || typeof data !== 'string') return false
+  const parts = data.split(':')
+  if (parts.length !== 2) return false
+  const [ivHex, payloadHex] = parts
+  const hexRegex = /^[0-9a-fA-F]+$/
+  return (
+    ivHex.length === LEGACY_CBC_IV_LENGTH * 2 &&
+    hexRegex.test(ivHex) &&
+    hexRegex.test(payloadHex)
+  )
 }
 
 // Cifrar campos específicos de mood (notas sensibles)
@@ -180,20 +260,28 @@ export function decryptInsightMetadata(encryptedMetadata: string | null): string
 }
 
 // Función para verificar si una cadena está cifrada
+// Reconoce ambos formatos: GCM (nuevo, v2:...) y CBC (legacy, iv:ct)
 export function isEncrypted(data: string): boolean {
   if (!data || typeof data !== 'string') return false
 
-  // Formato esperado: iv_hex:ciphertext_hex
-  const parts = data.split(':')
-  if (parts.length !== 2) return false
+  // Formato nuevo GCM: v2:<iv-hex>:<authTag-hex>:<ciphertext-hex>
+  if (data.startsWith(GCM_VERSION_PREFIX)) {
+    const payload = data.slice(GCM_VERSION_PREFIX.length)
+    const parts = payload.split(':')
+    if (parts.length !== 3) return false
+    const [ivHex, authTagHex, ciphertextHex] = parts
+    const hexRegex = /^[0-9a-fA-F]+$/
+    return (
+      ivHex.length === GCM_IV_LENGTH * 2 &&
+      authTagHex.length === GCM_AUTHTAG_LENGTH * 2 &&
+      hexRegex.test(ivHex) &&
+      hexRegex.test(authTagHex) &&
+      hexRegex.test(ciphertextHex)
+    )
+  }
 
-  const [ivHex, payloadHex] = parts
-  const hexRegex = /^[0-9a-fA-F]+$/
-  if (!hexRegex.test(ivHex) || !hexRegex.test(payloadHex)) return false
-  // IV debe tener tamaño IV_LENGTH bytes -> hex length = IV_LENGTH*2
-  if (ivHex.length !== IV_LENGTH * 2) return false
-
-  return true
+  // Formato legacy CBC: <iv-hex>:<ciphertext-hex>
+  return isLegacyCBCFormat(data)
 }
 
 // ─── Helpers genéricos ────────────────────────────────────────────────────────

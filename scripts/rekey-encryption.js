@@ -3,12 +3,18 @@ const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 
-// Debe coincidir con lib/encryption.ts y scripts/_encryption-helper.js
-const ALGORITHM = 'aes-256-cbc'
+// Cifrado AEAD (autenticado) para nuevas escrituras
+const GCM_ALGORITHM = 'aes-256-gcm'
+const GCM_IV_LENGTH = 12
+const GCM_VERSION_PREFIX = 'v2:'
+
+// Solo descifrado de datos legacy ya cifrados con CBC // NOSONAR
+const LEGACY_CBC_ALGORITHM = 'aes-256-cbc'
+const LEGACY_CBC_IV_LENGTH = 16
+
 const KEY_LENGTH = 32
-const IV_LENGTH = 16
-// Salt constante intencional — la fortaleza descansa en la entropía de la clave.
-// Cambiarlo invalidaría todos los datos previamente cifrados.
+// Salt constante por compatibilidad con datos previos. La fortaleza descansa
+// en la entropía de la clave (no en el salt).
 const SCRYPT_SALT = 'salt'
 
 function getKeyFromEnv(keyRaw) {
@@ -16,21 +22,42 @@ function getKeyFromEnv(keyRaw) {
   return crypto.scryptSync(keyRaw, SCRYPT_SALT, KEY_LENGTH)
 }
 
+// Escribe SIEMPRE en formato GCM (autenticado)
 function encryptWithKey(text, keyBuf) {
-  const iv = crypto.randomBytes(IV_LENGTH)
-  const cipher = crypto.createCipheriv(ALGORITHM, keyBuf, iv)
+  const iv = crypto.randomBytes(GCM_IV_LENGTH)
+  const cipher = crypto.createCipheriv(GCM_ALGORITHM, keyBuf, iv)
   let encrypted = cipher.update(text, 'utf8', 'hex')
   encrypted += cipher.final('hex')
-  return iv.toString('hex') + ':' + encrypted
+  const authTag = cipher.getAuthTag()
+  return `${GCM_VERSION_PREFIX}${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
 }
 
+// Detecta automáticamente formato GCM o CBC legacy al descifrar
 function tryDecryptWithKey(hexData, keyBuf) {
   try {
+    // Formato GCM nuevo
+    if (typeof hexData === 'string' && hexData.startsWith(GCM_VERSION_PREFIX)) {
+      const payload = hexData.slice(GCM_VERSION_PREFIX.length)
+      const parts = payload.split(':')
+      if (parts.length !== 3) return { ok: false, reason: 'gcm-format' }
+      const [ivHex, authTagHex, ciphertextHex] = parts
+      const iv = Buffer.from(ivHex, 'hex')
+      const authTag = Buffer.from(authTagHex, 'hex')
+      const decipher = crypto.createDecipheriv(GCM_ALGORITHM, keyBuf, iv)
+      decipher.setAuthTag(authTag)
+      let decrypted = decipher.update(ciphertextHex, 'hex', 'utf8')
+      decrypted += decipher.final('utf8')
+      return { ok: true, text: decrypted }
+    }
+
+    // Formato CBC legacy (solo lectura) // NOSONAR
     const parts = hexData.split(':')
     if (parts.length !== 2) return { ok: false, reason: 'format' }
+    if (parts[0].length !== LEGACY_CBC_IV_LENGTH * 2) return { ok: false, reason: 'iv-length' }
     const iv = Buffer.from(parts[0], 'hex')
     const encrypted = parts[1]
-    const decipher = crypto.createDecipheriv(ALGORITHM, keyBuf, iv)
+    // NOSONAR: legacy decryption only — re-encryption escribe en GCM
+    const decipher = crypto.createDecipheriv(LEGACY_CBC_ALGORITHM, keyBuf, iv)
     let decrypted = decipher.update(encrypted, 'hex', 'utf8')
     decrypted += decipher.final('utf8')
     return { ok: true, text: decrypted }

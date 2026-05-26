@@ -124,6 +124,14 @@ export function UserMenu() {
         const script = document.createElement("script")
         script.id = "gsi-script"
         script.src = "https://accounts.google.com/gsi/client"
+        // SEGURIDAD: Google Identity Services es un endpoint oficial servido por
+        // Google sobre HTTPS. NO publica hashes SRI estables porque el script se
+        // actualiza dinámicamente del lado del servidor para cumplir con políticas
+        // de seguridad de Google. Por eso no podemos fijar `integrity`.
+        // Mitigamos lo posible: crossOrigin=anonymous para CORS estricto y mejor
+        // reporte de errores; carga async/defer; mismo origen verificado por TLS.
+        script.crossOrigin = "anonymous"
+        script.referrerPolicy = "strict-origin"
         script.async = true
         script.defer = true
         script.onload = initGIS

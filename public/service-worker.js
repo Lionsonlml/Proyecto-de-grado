@@ -112,6 +112,27 @@ self.addEventListener("fetch", (event) => {
 
 // Manejo de mensajes desde el cliente
 self.addEventListener("message", (event) => {
+  // SEGURIDAD: verificar que el mensaje provenga del mismo origen.
+  // Sin esta validación cualquier ventana embebida (iframe de otro dominio)
+  // podría enviar mensajes al Service Worker y disparar comportamientos.
+  if (event.origin && event.origin !== self.location.origin) {
+    console.warn("[Service Worker] Mensaje rechazado de origen no autorizado:", event.origin)
+    return
+  }
+
+  // Validar también que la fuente sea un cliente del mismo scope
+  if (event.source && event.source.url) {
+    try {
+      const sourceOrigin = new URL(event.source.url).origin
+      if (sourceOrigin !== self.location.origin) {
+        console.warn("[Service Worker] Fuente del mensaje fuera del scope:", sourceOrigin)
+        return
+      }
+    } catch {
+      return
+    }
+  }
+
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting()
   }
