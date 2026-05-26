@@ -4,10 +4,21 @@ const ALGORITHM = 'aes-256-cbc'
 const KEY_LENGTH = 32 // 256 bits
 const IV_LENGTH = 16 // 128 bits
 
+// Salt constante intencional para compatibilidad con datos ya cifrados.
+// La fortaleza criptográfica se garantiza por la entropía de ENCRYPTION_KEY,
+// no por el salt. Cambiar este valor invalidaría todos los datos previos.
+const SCRYPT_SALT = 'salt'
+
 // Generar una clave de cifrado desde la variable de entorno
 function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY || 'default-key-change-in-production'
-  return crypto.scryptSync(key, 'salt', KEY_LENGTH)
+  const key = process.env.ENCRYPTION_KEY
+  if (!key || key.length < 16) {
+    throw new Error(
+      'ENCRYPTION_KEY environment variable is required (min 16 chars). ' +
+      'Set it in your environment before starting the app.'
+    )
+  }
+  return crypto.scryptSync(key, SCRYPT_SALT, KEY_LENGTH)
 }
 
 // Cifrar datos sensibles

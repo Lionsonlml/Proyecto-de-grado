@@ -84,11 +84,10 @@ export function UserMenu() {
     if (!GOOGLE_CLIENT_ID) return
     linkCallbackRef.current = handleLinkCredential
 
-    const origErr = console.error
-    console.error = (...args: any[]) => {
-      if (typeof args[0] === "string" && args[0].includes("GSI_LOGGER")) return
-      origErr.apply(console, args)
-    }
+    // Nota: Google Identity Services emite logs informativos (GSI_LOGGER) que
+    // no se pueden silenciar de forma limpia. Antes se monkey-patcheaba
+    // console.error, lo cual se removió por considerarse práctica insegura
+    // (modificar globales del runtime). Los logs son informativos y benignos.
 
     const initGIS = () => {
       const g = (window as any).google
@@ -132,7 +131,6 @@ export function UserMenu() {
       }
     }
 
-    return () => { console.error = origErr }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleLinkGoogle() {

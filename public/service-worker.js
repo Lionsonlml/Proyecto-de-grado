@@ -45,8 +45,10 @@ self.addEventListener("fetch", (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Solo cachear peticiones GET del mismo origen
-  if (request.method !== "GET" || !url.origin.includes(self.location.origin)) {
+  // Solo cachear peticiones GET del mismo origen.
+  // Usar comparación estricta de origen — usar includes() permitiría que un
+  // origen como "evil.location.origin" coincida con uno legítimo.
+  if (request.method !== "GET" || url.origin !== self.location.origin) {
     return
   }
 

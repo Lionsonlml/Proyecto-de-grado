@@ -3,14 +3,17 @@ const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 
-// Debe coincidir con lib/encryption.ts
+// Debe coincidir con lib/encryption.ts y scripts/_encryption-helper.js
 const ALGORITHM = 'aes-256-cbc'
 const KEY_LENGTH = 32
 const IV_LENGTH = 16
+// Salt constante intencional — la fortaleza descansa en la entropía de la clave.
+// Cambiarlo invalidaría todos los datos previamente cifrados.
+const SCRYPT_SALT = 'salt'
 
 function getKeyFromEnv(keyRaw) {
   if (!keyRaw) throw new Error('Se requiere la clave (env OLD_ENCRYPTION_KEY/NEW_ENCRYPTION_KEY)')
-  return crypto.scryptSync(keyRaw, 'salt', KEY_LENGTH)
+  return crypto.scryptSync(keyRaw, SCRYPT_SALT, KEY_LENGTH)
 }
 
 function encryptWithKey(text, keyBuf) {

@@ -1,61 +1,15 @@
-// Configurar variables de entorno antes de importar
-process.env.ENCRYPTION_KEY = 'default-key-change-in-production'
-process.env.JWT_SECRET = 'default-jwt-secret-for-testing'
+// Las variables de entorno deben venir del entorno real (NO hardcodearlas).
+// Para ejecutar localmente:
+//   PowerShell:  $env:ENCRYPTION_KEY="..."; node scripts/test-with-env.js
+//   Bash:        ENCRYPTION_KEY=... node scripts/test-with-env.js
+if (!process.env.ENCRYPTION_KEY) {
+  console.error('❌ ENCRYPTION_KEY no está configurada. Define la variable de entorno antes de ejecutar.')
+  process.exit(1)
+}
 
 const { createClient } = require('@libsql/client')
 const path = require('path')
-const crypto = require('crypto')
-
-// Usar EXACTAMENTE el mismo método de cifrado que lib/encryption.ts
-const ALGORITHM = 'aes-256-cbc'
-const KEY_LENGTH = 32
-const IV_LENGTH = 16
-
-function getEncryptionKey() {
-  const key = process.env.ENCRYPTION_KEY || 'default-key-change-in-production'
-  return crypto.scryptSync(key, 'salt', KEY_LENGTH)
-}
-
-function encryptSensitiveData(data) {
-  try {
-    const key = getEncryptionKey()
-    const iv = crypto.randomBytes(IV_LENGTH)
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-    
-    let encrypted = cipher.update(data, 'utf8', 'hex')
-    encrypted += cipher.final('hex')
-    
-    return iv.toString('hex') + ':' + encrypted
-  } catch (error) {
-    console.error('Error cifrando datos:', error)
-    throw new Error('Error al cifrar datos sensibles')
-  }
-}
-
-function decryptSensitiveData(encryptedData) {
-  try {
-    // Si no está cifrado, devolver tal como está
-    if (!encryptedData.includes(':') || encryptedData.split(':').length !== 2) {
-      return encryptedData
-    }
-
-    const key = getEncryptionKey()
-    const parts = encryptedData.split(':')
-    
-    const iv = Buffer.from(parts[0], 'hex')
-    const encrypted = parts[1]
-    
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-    
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-    
-    return decrypted
-  } catch (error) {
-    console.error('Error descifrando datos:', error)
-    return '[Datos no disponibles]'
-  }
-}
+const { encryptSensitiveData, decryptSensitiveData } = require('./_encryption-helper')
 
 async function testWithEnvironment() {
   const dbPath = path.join(process.cwd(), 'data', 'app.db')

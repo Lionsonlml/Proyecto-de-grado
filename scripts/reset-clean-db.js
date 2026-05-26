@@ -1,32 +1,7 @@
 const { createClient } = require('@libsql/client')
 const path = require('path')
 const fs = require('fs')
-const crypto = require('crypto')
-
-const ALGORITHM = 'aes-256-cbc'
-const KEY_LENGTH = 32
-const IV_LENGTH = 16
-
-function getEncryptionKey() {
-  const key = process.env.ENCRYPTION_KEY || 'default-key-change-in-production'
-  return crypto.scryptSync(key, 'salt', KEY_LENGTH)
-}
-
-function encryptSensitiveData(data) {
-  try {
-    const key = getEncryptionKey()
-    const iv = crypto.randomBytes(IV_LENGTH)
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-    
-    let encrypted = cipher.update(data, 'utf8', 'hex')
-    encrypted += cipher.final('hex')
-    
-    return iv.toString('hex') + ':' + encrypted
-  } catch (error) {
-    console.error('Error cifrando datos:', error)
-    throw new Error('Error al cifrar datos sensibles')
-  }
-}
+const { encryptSensitiveData, getSeedPassword } = require('./_encryption-helper')
 
 async function resetDatabase() {
   const dbPath = path.join(process.cwd(), 'data', 'app.db')
@@ -166,10 +141,11 @@ async function resetDatabase() {
     
     const bcrypt = require('bcryptjs')
     
+    const demoPassword = getSeedPassword('SEED_PASSWORD_DEMO')
     const users = [
       {
         email: "demo@test.com",
-        password: await bcrypt.hash("demo123", 10),
+        password: await bcrypt.hash(demoPassword, 10),
         name: "Usuario Demo",
       },
     ]
@@ -353,9 +329,9 @@ async function resetDatabase() {
     console.log('')
     console.log('🎉 Base de datos reinicializada exitosamente!')
     console.log('')
-    console.log('Datos de acceso:')
+    console.log('Datos de acceso (revisa warnings arriba si no configuraste SEED_PASSWORD_DEMO):')
     console.log('- Email: demo@test.com')
-    console.log('- Contraseña: demo123')
+    console.log(`- Contraseña: ${demoPassword}`)
     console.log('')
 
   } catch (error) {

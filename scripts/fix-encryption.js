@@ -1,57 +1,7 @@
 const { createClient } = require('@libsql/client')
 const path = require('path')
-const crypto = require('crypto')
 const fs = require('fs')
-
-// Usar EXACTAMENTE el mismo método de cifrado que lib/encryption.ts
-const ALGORITHM = 'aes-256-cbc'
-const KEY_LENGTH = 32
-const IV_LENGTH = 16
-
-function getEncryptionKey() {
-  const key = process.env.ENCRYPTION_KEY || 'default-key-change-in-production'
-  return crypto.scryptSync(key, 'salt', KEY_LENGTH)
-}
-
-function encryptSensitiveData(data) {
-  try {
-    const key = getEncryptionKey()
-    const iv = crypto.randomBytes(IV_LENGTH)
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-    
-    let encrypted = cipher.update(data, 'utf8', 'hex')
-    encrypted += cipher.final('hex')
-    
-    return iv.toString('hex') + ':' + encrypted
-  } catch (error) {
-    console.error('Error cifrando datos:', error)
-    throw new Error('Error al cifrar datos sensibles')
-  }
-}
-
-function decryptSensitiveData(encryptedData) {
-  try {
-    const key = getEncryptionKey()
-    const parts = encryptedData.split(':')
-    
-    if (parts.length !== 2) {
-      throw new Error('Formato de datos cifrados inválido')
-    }
-    
-    const iv = Buffer.from(parts[0], 'hex')
-    const encrypted = parts[1]
-    
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-    
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-    
-    return decrypted
-  } catch (error) {
-    console.error('Error descifrando datos:', error)
-    return '[Datos no disponibles]'
-  }
-}
+const { encryptSensitiveData, decryptSensitiveData, getSeedPassword } = require('./_encryption-helper')
 
 async function fixDatabase() {
   const dbPath = path.join(process.cwd(), 'data', 'app.db')
@@ -196,20 +146,28 @@ async function fixDatabase() {
     
     const bcrypt = require('bcryptjs')
     
+    // Contraseñas leídas de variables de entorno (o generadas aleatorias).
+    // Nunca hardcodear contraseñas en código fuente.
+    const passwords = {
+      maria: getSeedPassword('SEED_PASSWORD_MARIA'),
+      juan:  getSeedPassword('SEED_PASSWORD_JUAN'),
+      admin: getSeedPassword('SEED_PASSWORD_ADMIN'),
+    }
+
     const users = [
       {
         email: "maria@test.com",
-        password: await bcrypt.hash("password123", 10),
+        password: await bcrypt.hash(passwords.maria, 10),
         name: "María García",
       },
       {
         email: "juan@test.com",
-        password: await bcrypt.hash("password123", 10),
+        password: await bcrypt.hash(passwords.juan, 10),
         name: "Juan Pérez",
       },
       {
         email: "admin@test.com",
-        password: await bcrypt.hash("admin123", 10),
+        password: await bcrypt.hash(passwords.admin, 10),
         name: "Admin User",
       },
     ]
@@ -461,10 +419,10 @@ async function fixDatabase() {
     console.log('')
     console.log('🎉 Base de datos corregida exitosamente!')
     console.log('')
-    console.log('Datos de prueba:')
-    console.log('- maria@test.com / password123')
-    console.log('- juan@test.com / password123') 
-    console.log('- admin@test.com / admin123')
+    console.log('Datos de prueba (revisa warnings arriba si no configuraste SEED_PASSWORD_*):')
+    console.log(`- maria@test.com / ${passwords.maria}`)
+    console.log(`- juan@test.com / ${passwords.juan}`)
+    console.log(`- admin@test.com / ${passwords.admin}`)
     console.log('')
     console.log('IMPORTANTE:')
     console.log('1. Configura ENCRYPTION_KEY en tu archivo .env.local')
