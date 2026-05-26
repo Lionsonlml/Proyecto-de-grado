@@ -37,6 +37,8 @@ export interface Mood {
   stress: number // 1-5
   notes?: string
   timestamp: string
+  contextFactors?: string[]   // Factores contextuales seleccionados (ej. "slept-poorly")
+  concentrationScore?: number // 0-100: puntaje objetivo del mini-test de Stroop
 }
 
 export interface TimeBlock {

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Token inválido" }, { status: 401 })
 
     const body = await request.json()
-    const { energy, focus, stress, type, hour, date, notes } = body
+    const { energy, focus, stress, type, hour, date, notes, context_factors, concentration_score } = body
 
     const energyNum = Number(energy)
     const focusNum = Number(focus) || 3
@@ -60,6 +60,12 @@ export async function POST(request: NextRequest) {
       hour: hour !== undefined && hour !== null ? Number(hour) : currentDateTime.hour,
       date: date || currentDateTime.date,
       notes: notes || undefined,
+      context_factors: Array.isArray(context_factors) && context_factors.length > 0
+        ? JSON.stringify(context_factors)
+        : undefined,
+      concentration_score: concentration_score !== undefined && concentration_score !== null
+        ? Number(concentration_score)
+        : undefined,
     }, request)
 
     return NextResponse.json({ success: true, message: "Mood creado exitosamente" })

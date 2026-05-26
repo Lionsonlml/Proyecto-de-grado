@@ -29,6 +29,10 @@ export default function MoodsPage() {
         stress: m.stress || 3,
         notes: m.notes || undefined,
         timestamp: m.created_at || new Date().toISOString(),
+        contextFactors: m.context_factors
+          ? (() => { try { return JSON.parse(m.context_factors) } catch { return undefined } })()
+          : undefined,
+        concentrationScore: m.concentration_score != null ? Number(m.concentration_score) : undefined,
       }))
 
       setMoods(convertedMoods)
@@ -68,6 +72,8 @@ export default function MoodsPage() {
           stress: moodData.stress,
           type: moodData.mood,
           notes: moodData.notes,
+          context_factors: moodData.contextFactors,
+          concentration_score: moodData.concentrationScore,
         }),
       })
 

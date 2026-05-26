@@ -298,6 +298,8 @@ export async function saveSecureMood(userId: number, moodData: {
   hour: number
   date: string
   notes?: string
+  context_factors?: string    // JSON string de factores contextuales
+  concentration_score?: number // 0-100, puntaje del mini-test de Stroop
 }, request?: Request) {
   // Verificar permisos de acceso
   const hasAccess = await verifyUserAccess(userId, userId, 'create', 'moods', request)
@@ -307,7 +309,7 @@ export async function saveSecureMood(userId: number, moodData: {
 
   const db = getDb()
 
-  // Cifrar todos los campos sensibles
+  // Cifrar campos sensibles (notes); los demás se guardan en plano
   const enc = encryptMoodFullData({
     energy: moodData.energy,
     focus: moodData.focus,
@@ -319,7 +321,9 @@ export async function saveSecureMood(userId: number, moodData: {
   })
 
   await db.execute({
-    sql: "INSERT INTO moods (user_id, energy, focus, stress, type, hour, date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    sql: `INSERT INTO moods
+      (user_id, energy, focus, stress, type, hour, date, notes, context_factors, concentration_score)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       userId,
       enc.energy,
@@ -329,6 +333,8 @@ export async function saveSecureMood(userId: number, moodData: {
       enc.hour,
       enc.date,
       enc.notes,
+      moodData.context_factors ?? null,
+      moodData.concentration_score ?? null,
     ],
   })
 }
@@ -476,16 +482,18 @@ export async function getGeminiUserMoods(userId: number, targetUserId: number, d
   
   if (date) {
     result = await db.execute({
-      sql: "SELECT id, type, hour, energy, focus, stress, date, notes FROM moods WHERE user_id = ? AND date = ? ORDER BY hour ASC",
+      sql: `SELECT id, type, hour, energy, focus, stress, date, notes, context_factors, concentration_score
+            FROM moods WHERE user_id = ? AND date = ? ORDER BY hour ASC`,
       args: [targetUserId, date],
     })
   } else {
     result = await db.execute({
-      sql: "SELECT id, type, hour, energy, focus, stress, date, notes FROM moods WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+      sql: `SELECT id, type, hour, energy, focus, stress, date, notes, context_factors, concentration_score
+            FROM moods WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`,
       args: [targetUserId],
     })
   }
-  
+
   // Descifrar todos los campos sensibles antes de enviar a Gemini
   return result.rows.map(row => {
     const dec = decryptMoodFullData(row as Record<string, any>)
@@ -498,6 +506,8 @@ export async function getGeminiUserMoods(userId: number, targetUserId: number, d
       stress: dec.stress,
       date: dec.date,
       notes: dec.notes,
+      context_factors: dec.context_factors ?? null,
+      concentration_score: dec.concentration_score != null ? Number(dec.concentration_score) : null,
     }
   })
 }

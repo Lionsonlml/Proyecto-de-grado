@@ -240,6 +240,19 @@ async function initializeTables(db: Client): Promise<void> {
     }
   }
 
+  // ─── Migraciones: nuevas columnas moods ─────────────────────────────────────
+  const moodMigrations = [
+    `ALTER TABLE moods ADD COLUMN context_factors TEXT`,
+    `ALTER TABLE moods ADD COLUMN concentration_score INTEGER`,
+  ]
+  for (const sql of moodMigrations) {
+    try {
+      await db.execute(sql)
+    } catch {
+      // Columna ya existe — ignorar
+    }
+  }
+
   if (process.env.NODE_ENV !== "production") {
     console.log("[DB] Tablas listas")
   }
