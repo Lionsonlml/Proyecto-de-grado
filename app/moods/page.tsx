@@ -5,6 +5,7 @@ import { fetchWithCache, invalidateCache } from "@/lib/client-cache"
 import { MoodTracker } from "@/components/mood-tracker"
 import { MoodHistory } from "@/components/mood-history"
 import { MoodPatterns } from "@/components/mood-patterns"
+import { MoodSummary } from "@/components/mood-summary"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { Mood } from "@/lib/types"
 import { AppLayout } from "@/components/app-layout"
@@ -146,7 +147,8 @@ export default function MoodsPage() {
             </TabsContent>
 
             {/* ── Tab 2: Patrones ──────────────────────────────── */}
-            <TabsContent value="patrones" className="mt-0">
+            <TabsContent value="patrones" className="mt-0 space-y-4 md:space-y-6">
+              <MoodSummary moods={moods} />
               <MoodPatterns moods={moods} />
             </TabsContent>
           </Tabs>

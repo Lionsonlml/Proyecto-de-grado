@@ -31,13 +31,14 @@ export function MoodAiState({ refreshKey }: MoodAiStateProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
 
-  const fetchState = useCallback(async () => {
+  const fetchState = useCallback(async (force = false) => {
     setLoading(true)
     setError(null)
     try {
       const res = await fetch("/api/gemini/mood-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
       })
       if (!res.ok) throw new Error(`Error ${res.status}`)
       const json = await res.json() as MoodStateResponse
@@ -50,8 +51,12 @@ export function MoodAiState({ refreshKey }: MoodAiStateProps) {
   }, [])
 
   useEffect(() => {
-    fetchState()
+    // Carga automática (sin force) → puede usar caché
+    fetchState(false)
   }, [fetchState, refreshKey])
+
+  // Refresh manual → siempre fuerza llamada a Gemini
+  const handleManualRefresh = () => fetchState(true)
 
   const trend = data?.summary.trend ?? 0
   const TrendIcon  = trend > 0.15 ? TrendingUp : trend < -0.15 ? TrendingDown : Minus
@@ -72,10 +77,11 @@ export function MoodAiState({ refreshKey }: MoodAiStateProps) {
           </CardTitle>
           <button
             type="button"
-            onClick={fetchState}
+            onClick={handleManualRefresh}
             disabled={loading}
             className="text-muted-foreground hover:text-primary disabled:opacity-50 transition-colors"
-            aria-label="Refrescar análisis"
+            aria-label="Refrescar análisis con nueva consulta a la IA"
+            title="Refrescar con nueva consulta a la IA"
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
           </button>
@@ -101,7 +107,7 @@ export function MoodAiState({ refreshKey }: MoodAiStateProps) {
             <p className="text-sm text-destructive">{error}</p>
             <button
               type="button"
-              onClick={fetchState}
+              onClick={handleManualRefresh}
               className="text-xs underline hover:no-underline mt-1"
             >
               Reintentar

@@ -9,7 +9,12 @@ interface MoodSummaryProps {
 }
 
 export function MoodSummary({ moods }: MoodSummaryProps) {
-  const recentMoods = moods.slice(-7)
+  // Tomar los 7 MÁS RECIENTES sin importar el orden de entrada.
+  // (Antes usaba slice(-7) que falla cuando el array viene ordenado DESC,
+  //  devolviendo los 7 más antiguos y mostrando siempre "Bajando".)
+  const recentMoods = [...moods]
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 7)
 
   if (recentMoods.length === 0) {
     return (

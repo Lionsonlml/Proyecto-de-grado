@@ -122,15 +122,6 @@ export function MonthSchedule({ month, blocks, onDayClick }: MonthScheduleProps)
         })}
       </div>
 
-      {/* Leyenda de colores (solo desktop) */}
-      <div className="hidden sm:flex gap-4 mt-3 flex-wrap">
-        {Object.entries({ tarea: "Tarea", reunion: "Reunión", descanso: "Descanso", otro: "Otro" }).map(([key, label]) => (
-          <div key={key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className={cn("w-2.5 h-2.5 rounded-full", dotColors[key])} />
-            {label}
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

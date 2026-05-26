@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Token inválido" }, { status: 401 })
 
     const body = await request.json()
-    const { energy, focus, stress, moodType } = body
+    const { energy, focus, stress, moodType, force } = body
 
     const currentEnergy = energy || 3
     const currentFocus = focus || 3
@@ -61,15 +61,18 @@ export async function POST(request: NextRequest) {
     const today = new Date().toISOString().split("T")[0]
     const cacheKey = buildCacheKey("motivational", currentMoodType, today)
 
-    const cached = await getCached(user.id, cacheKey)
-    if (cached) {
-      return NextResponse.json({
-        success: true,
-        quote: cached.response,
-        context: moodContext,
-        source: "cache" as const,
-        cachedAt: cached.cachedAt,
-      })
+    // Si force=true, omitir caché y forzar llamada nueva a Gemini
+    if (!force) {
+      const cached = await getCached(user.id, cacheKey)
+      if (cached) {
+        return NextResponse.json({
+          success: true,
+          quote: cached.response,
+          context: moodContext,
+          source: "cache" as const,
+          cachedAt: cached.cachedAt,
+        })
+      }
     }
 
     // ── 4. Llamar a Gemini con retry ──────────────────────────────────────────

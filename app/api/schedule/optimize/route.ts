@@ -212,11 +212,75 @@ Responde SOLO con este JSON (sin markdown, sin texto antes ni después):
       })
     }
 
+    // ── 4.5. Enforcement de tareas fijas ──────────────────────────────────────
+    // Aunque el prompt instruye a Gemini "no mover" las tareas con horario fijo,
+    // a veces el modelo las reubica. Aquí sobreescribimos su salida para garantizar
+    // que las fijas SIEMPRE queden en su hora/duración originales, y agregamos las
+    // que Gemini omitió por completo.
+    const geminiSchedule: any[] = Array.isArray(parsedSchedule.schedule)
+      ? parsedSchedule.schedule
+      : []
+
+    const fixedByTitle = new Map<string, { hour: number; duration: number; title: string }>()
+    for (const t of fixedTasks as any[]) {
+      const title = String(t.title ?? "").trim()
+      if (!title) continue
+      fixedByTitle.set(title.toLowerCase(), {
+        hour: Number(t.hour) || 9,
+        duration: Number(t.duration) || 60,
+        title,
+      })
+    }
+
+    // 1) Sobreescribir entradas existentes que correspondan a tareas fijas
+    const enforcedSchedule = geminiSchedule.map((item: any) => {
+      const itemTitle = String(item.task ?? "").trim().toLowerCase()
+      const fixed = fixedByTitle.get(itemTitle)
+      if (fixed) {
+        return {
+          ...item,
+          time: `${String(fixed.hour).padStart(2, "0")}:00`,
+          duration: fixed.duration,
+          isFixed: true,
+        }
+      }
+      return item
+    })
+
+    // 2) Agregar tareas fijas que Gemini omitió
+    const scheduledTitles = new Set(
+      enforcedSchedule.map((s: any) => String(s.task ?? "").trim().toLowerCase()),
+    )
+    const missingFixed: any[] = []
+    for (const [titleKey, info] of fixedByTitle.entries()) {
+      if (!scheduledTitles.has(titleKey)) {
+        missingFixed.push({
+          time: `${String(info.hour).padStart(2, "0")}:00`,
+          task: info.title,
+          duration: info.duration,
+          isFixed: true,
+        })
+      }
+    }
+
+    // 3) Combinar y reordenar por hora
+    const finalSchedule = [...enforcedSchedule, ...missingFixed].sort((a, b) => {
+      const ah = parseInt(String(a.time ?? "00:00").split(":")[0]) || 0
+      const bh = parseInt(String(b.time ?? "00:00").split(":")[0]) || 0
+      if (ah !== bh) return ah - bh
+      const am = parseInt(String(a.time ?? "00:00").split(":")[1]) || 0
+      const bm = parseInt(String(b.time ?? "00:00").split(":")[1]) || 0
+      return am - bm
+    })
+
+    // Reemplazar el schedule original con el "enforced"
+    parsedSchedule.schedule = finalSchedule
+
     // ── 5. Guardar en caché ───────────────────────────────────────────────────
     const cachePayload = JSON.stringify({
       originalTasks: allTasks,
       pendingTasks,
-      optimizedSchedule: parsedSchedule.schedule ?? [],
+      optimizedSchedule: finalSchedule,
       date: targetDate,
     })
     await setCached(user.id, cacheKey, cachePayload)
@@ -247,7 +311,7 @@ Responde SOLO con este JSON (sin markdown, sin texto antes ni después):
       success: true,
       originalTasks: allTasks,
       pendingTasks,
-      optimizedSchedule: parsedSchedule.schedule ?? [],
+      optimizedSchedule: finalSchedule,
       conflicts: allConflicts,
       warnings: parsedSchedule.warnings ?? [],
       response: responseText,

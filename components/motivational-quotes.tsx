@@ -18,7 +18,7 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
   const [source, setSource] = useState<AiSource>("gemini")
   const [cachedAt, setCachedAt] = useState<string | undefined>(undefined)
 
-  const generateQuote = async () => {
+  const generateQuote = async (force = false) => {
     if (moods.length === 0) return
 
     setLoading(true)
@@ -40,6 +40,7 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
           focus,
           stress,
           moodType,
+          force, // bypass de caché cuando el usuario presiona refrescar
         }),
       })
 
@@ -61,10 +62,14 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
 
   useEffect(() => {
     if (moods.length > 0) {
-      generateQuote()
+      // Carga automática puede usar caché
+      generateQuote(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moods.length, moods[0]?.id ?? ''])
+
+  // Refresh manual → siempre fuerza llamada a Gemini
+  const handleManualRefresh = () => generateQuote(true)
 
   if (moods.length === 0) {
     return (
@@ -118,9 +123,10 @@ export function MotivationalQuotes({ moods }: MotivationalQuotesProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={generateQuote}
+            onClick={handleManualRefresh}
             disabled={loading}
             className="shrink-0 h-8 w-8 p-0 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+            title="Refrescar con nueva consulta a la IA"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>

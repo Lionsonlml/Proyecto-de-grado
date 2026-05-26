@@ -65,6 +65,10 @@ export async function POST(request: NextRequest) {
     const user = await verifyToken(token)
     if (!user) return NextResponse.json({ error: "Token inválido" }, { status: 401 })
 
+    // Leer flag force del body (opcional) para bypass de caché
+    const body = await request.json().catch(() => ({}))
+    const force = body?.force === true
+
     // ── 2. Obtener moods recientes (descifrados, plano) ───────────────────
     const allMoods = await getGeminiUserMoods(user.id, user.id, undefined, request)
     const moods = allMoods.slice(0, 10) // los 10 más recientes (orden DESC en BD)
@@ -110,15 +114,18 @@ export async function POST(request: NextRequest) {
     const cacheSubKey = `${avgMood.toFixed(1)}-${avgEnergy.toFixed(1)}-${avgFocus.toFixed(1)}-${avgStress.toFixed(1)}-${moods.length}`
     const cacheKey = buildCacheKey("mood-state", cacheSubKey, today)
 
-    const cached = await getCached(user.id, cacheKey)
-    if (cached) {
-      return NextResponse.json({
-        success: true,
-        state: cached.response,
-        summary,
-        source: "cache" as const,
-        cachedAt: cached.cachedAt,
-      })
+    // Si force=true, omitir caché y forzar llamada nueva a Gemini
+    if (!force) {
+      const cached = await getCached(user.id, cacheKey)
+      if (cached) {
+        return NextResponse.json({
+          success: true,
+          state: cached.response,
+          summary,
+          source: "cache" as const,
+          cachedAt: cached.cachedAt,
+        })
+      }
     }
 
     // ── 5. Construir prompt y llamar a Gemini ─────────────────────────────
