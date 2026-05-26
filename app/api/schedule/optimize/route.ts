@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
     const peakHour = Object.entries(hourStats)
       .map(([h, scores]) => ({
-        hour: parseInt(h),
+        hour: Number.parseInt(h),
         score: scores.reduce((a, b) => a + b, 0) / scores.length,
       }))
       .sort((a, b) => b.score - a.score)[0]
@@ -265,11 +265,11 @@ Responde SOLO con este JSON (sin markdown, sin texto antes ni después):
 
     // 3) Combinar y reordenar por hora
     const finalSchedule = [...enforcedSchedule, ...missingFixed].sort((a, b) => {
-      const ah = parseInt(String(a.time ?? "00:00").split(":")[0]) || 0
-      const bh = parseInt(String(b.time ?? "00:00").split(":")[0]) || 0
+      const ah = Number.parseInt(String(a.time ?? "00:00").split(":")[0]) || 0
+      const bh = Number.parseInt(String(b.time ?? "00:00").split(":")[0]) || 0
       if (ah !== bh) return ah - bh
-      const am = parseInt(String(a.time ?? "00:00").split(":")[1]) || 0
-      const bm = parseInt(String(b.time ?? "00:00").split(":")[1]) || 0
+      const am = Number.parseInt(String(a.time ?? "00:00").split(":")[1]) || 0
+      const bm = Number.parseInt(String(b.time ?? "00:00").split(":")[1]) || 0
       return am - bm
     })
 

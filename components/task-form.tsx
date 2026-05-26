@@ -22,8 +22,8 @@ interface TaskFormProps {
 
 // Clampea un string numérico al rango [min, max]; usa fallback si no es un número válido
 function clampInt(val: string, min: number, max: number, fallback: number): string {
-  const n = parseInt(val, 10)
-  if (isNaN(n)) return String(fallback)
+  const n = Number.parseInt(val, 10)
+  if (Number.isNaN(n)) return String(fallback)
   return String(Math.max(min, Math.min(max, n)))
 }
 

@@ -326,7 +326,7 @@ export function decryptTaskFullData(row: Record<string, any>): Record<string, an
   const decInt = (v: any): number => {
     if (v === null || v === undefined) return 0
     const result = safeDecryptField(v)
-    return parseInt(String(result ?? '0'), 10) || 0
+    return Number.parseInt(String(result ?? '0'), 10) || 0
   }
   const decCompleted = (v: any): number => {
     if (v === null || v === undefined) return 0

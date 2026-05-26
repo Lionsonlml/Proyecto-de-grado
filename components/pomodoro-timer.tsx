@@ -21,7 +21,7 @@ export function PomodoroTimer({ taskId, taskTitle, onSessionComplete, onClose }:
   const [running, setRunning] = useState(false)
   const [sessions, setSessions] = useState(() => {
     if (typeof window === 'undefined') return 0
-    return parseInt(localStorage.getItem(`tw_pomodoro_${taskId}`) || '0')
+    return Number.parseInt(localStorage.getItem(`tw_pomodoro_${taskId}`) || '0')
   })
   const [askContinue, setAskContinue] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)

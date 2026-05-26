@@ -64,7 +64,7 @@ function buildContextSummary(
   }
   const peakHour = Object.entries(hourStats)
     .map(([h, s]) => ({
-      hour: parseInt(h),
+      hour: Number.parseInt(h),
       score: (avg(s.energy) + avg(s.focus)) / 2,
     }))
     .sort((a, b) => b.score - a.score)[0]

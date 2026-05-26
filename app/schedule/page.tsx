@@ -238,7 +238,7 @@ export default function SchedulePage() {
   // ── Operaciones sobre bloques ────────────────────────────────────────────────
   const extractTaskId = (blockId: string): number | null => {
     const match = blockId.match(/^db-(\d+)$/)
-    return match ? parseInt(match[1], 10) : null
+    return match ? Number.parseInt(match[1], 10) : null
   }
 
   const handleToggleComplete = async (blockId: string) => {
@@ -320,7 +320,7 @@ export default function SchedulePage() {
 
   const handleAddBlock = async (e: FormEvent) => {
     e.preventDefault()
-    const hour = Math.max(0, Math.min(23, parseInt(newBlockHour) || 9))
+    const hour = Math.max(0, Math.min(23, Number.parseInt(newBlockHour) || 9))
     const targetDate = addBlockDate || dateStr
 
     setAddingBlock(true)
@@ -330,14 +330,14 @@ export default function SchedulePage() {
         const res = await fetch("/api/tasks", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: parseInt(selectedExistingId), hour, date: targetDate }),
+          body: JSON.stringify({ id: Number.parseInt(selectedExistingId), hour, date: targetDate }),
         })
         if (!res.ok) throw new Error()
         toast({ title: "Tarea reagendada correctamente" })
       } else {
         // Nueva tarea
         if (!newBlockTitle.trim()) return
-        const duration = Math.max(1, parseInt(newBlockDuration) || 60)
+        const duration = Math.max(1, Number.parseInt(newBlockDuration) || 60)
         const categoryMap: Record<TimeBlock["type"], string> = {
           tarea: "personal", reunion: "trabajo", descanso: "salud", otro: "otro",
         }
@@ -473,8 +473,8 @@ export default function SchedulePage() {
                 value={newBlockHour}
                 onChange={(e) => setNewBlockHour(e.target.value)}
                 onBlur={(e) => {
-                  const n = parseInt(e.target.value, 10)
-                  setNewBlockHour(String(isNaN(n) ? 9 : Math.max(0, Math.min(23, n))))
+                  const n = Number.parseInt(e.target.value, 10)
+                  setNewBlockHour(String(Number.isNaN(n) ? 9 : Math.max(0, Math.min(23, n))))
                 }}
               />
             </div>
@@ -490,8 +490,8 @@ export default function SchedulePage() {
                   value={newBlockDuration}
                   onChange={(e) => setNewBlockDuration(e.target.value)}
                   onBlur={(e) => {
-                    const n = parseInt(e.target.value, 10)
-                    setNewBlockDuration(String(isNaN(n) ? 60 : Math.max(1, Math.min(480, n))))
+                    const n = Number.parseInt(e.target.value, 10)
+                    setNewBlockDuration(String(Number.isNaN(n) ? 60 : Math.max(1, Math.min(480, n))))
                   }}
                 />
               </div>
@@ -521,8 +521,8 @@ export default function SchedulePage() {
                   value={newBlockDuration}
                   onChange={(e) => setNewBlockDuration(e.target.value)}
                   onBlur={(e) => {
-                    const n = parseInt(e.target.value, 10)
-                    setNewBlockDuration(String(isNaN(n) ? 60 : Math.max(1, Math.min(480, n))))
+                    const n = Number.parseInt(e.target.value, 10)
+                    setNewBlockDuration(String(Number.isNaN(n) ? 60 : Math.max(1, Math.min(480, n))))
                   }}
                 />
               </div>
