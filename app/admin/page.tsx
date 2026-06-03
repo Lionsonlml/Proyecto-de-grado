@@ -30,6 +30,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { getCachedUser, clearAllCache, invalidateUserCache } from "@/lib/client-cache"
 import { formatBogotaDateTime } from "@/lib/timezone"
+import { AdminImpact } from "@/components/admin-impact"
 
 interface AdminStats {
   users: {
@@ -485,6 +486,9 @@ export default function AdminPage() {
             </section>
           </>
         ) : null}
+
+        {/* ── Impacto en usuarios (Productividad y Bienestar) ───── */}
+        <AdminImpact />
 
         {/* ── Diagnóstico Gemini ────────────────────────────────── */}
         <section className="space-y-3">
