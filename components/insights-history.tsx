@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { History, TrendingUp, Lightbulb, Calendar, ChevronDown, ChevronUp } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
+import { parseDbTimestamp } from "@/lib/timezone"
 
 export function InsightsHistory() {
   const [insights, setInsights] = useState<any[]>([])
@@ -86,7 +87,7 @@ export function InsightsHistory() {
             <div className="space-y-3">
               {insights.map((insight) => {
                 const isExpanded = expandedId === insight.id
-                const createdDate = insight.created_at ? new Date(insight.created_at) : new Date()
+                const createdDate = insight.created_at ? parseDbTimestamp(insight.created_at) : new Date()
                 
                 return (
                   <div

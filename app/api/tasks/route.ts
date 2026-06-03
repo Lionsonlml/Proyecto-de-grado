@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { verifyToken } from "@/lib/auth"
 import { getSecureUserTasks, saveSecureTask, updateSecureTask, deleteSecureTask } from "@/lib/secure-data"
 import { getDb, createRecurringNextTask } from "@/lib/db"
+import { todayColombia } from "@/lib/timezone"
 
 // GET - Obtener todas las tareas del usuario
 export async function GET(request: NextRequest) {
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
     const finalPriority = validPriorities.includes(priority) ? priority : 'media'
     const finalStatus = validStatuses.includes(status) ? status : 'pendiente'
     const finalHour = Math.max(0, Math.min(23, Number(hour) || 9))
-    const finalDate = date || new Date().toISOString().split('T')[0]
+    const finalDate = date || todayColombia()
     const completed = finalStatus === 'completada' ? 1 : 0
     const tagsString = Array.isArray(tags) ? tags.join(',') : (tags || null)
 

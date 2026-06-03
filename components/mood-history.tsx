@@ -12,6 +12,7 @@ import {
   Layers, Eye, Calculator, Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatBogotaShortDate, formatBogotaTime, parseDbTimestamp } from "@/lib/timezone"
 
 interface MoodHistoryProps {
   moods: Mood[]
@@ -259,7 +260,7 @@ export function MoodHistory({ moods }: MoodHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const sortedMoods = [...moods].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    (a, b) => parseDbTimestamp(b.timestamp).getTime() - parseDbTimestamp(a.timestamp).getTime(),
   )
 
   return (
@@ -278,7 +279,6 @@ export function MoodHistory({ moods }: MoodHistoryProps) {
             {sortedMoods.slice(0, 10).map(mood => {
               const config = moodConfig[mood.mood]
               const Icon = config.icon
-              const date = new Date(mood.timestamp)
               const isExpanded = expandedId === mood.id
 
               const factorCount = (mood.contextFactors ?? []).filter(f => !f.startsWith("__test:")).length
@@ -305,8 +305,8 @@ export function MoodHistory({ moods }: MoodHistoryProps) {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <h4 className="font-semibold">{config.label}</h4>
                         <span className="text-xs sm:text-sm text-muted-foreground">
-                          {date.toLocaleDateString("es-ES", { day: "numeric", month: "short" })} ·{" "}
-                          {date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                          {formatBogotaShortDate(mood.timestamp)} ·{" "}
+                          {formatBogotaTime(mood.timestamp)}
                         </span>
                       </div>
 

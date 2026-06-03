@@ -1,21 +1,25 @@
 /**
- * GET /api/gemini/usage — Estadísticas de uso de la API de Gemini
+ * /api/gemini/usage — Consumo real y cuota de la API de Gemini.
  *
- * Devuelve cuántas llamadas a Gemini se han registrado hoy en ai_insights,
- * junto con los límites del plan free tier para comparar.
+ * GET  → Resumen del consumo. Para admins incluye tokens reales, coste estimado,
+ *        tier de la key y preview de la key. Para usuarios normales devuelve solo
+ *        el porcentaje de cuota usado (para el aviso del laboratorio).
+ * PUT  → (solo admin) Cambia el tier declarado de la key: { tier: "free" | "paid" }.
+ *
+ * Los tokens provienen de `usageMetadata` que Gemini devuelve en cada llamada y se
+ * registran en la tabla gemini_usage (a nivel de key). Google no expone la cuota
+ * en vivo, por lo que "lo que queda" es una estimación frente al plan declarado.
  */
 
 import { NextResponse, type NextRequest } from "next/server"
 import { verifyToken } from "@/lib/auth"
-import { getDb } from "@/lib/db"
-import { ensureDbReady } from "@/lib/db"
+import { GEMINI_CONFIG } from "@/lib/gemini-config"
+import { getUsageSummary, setKeyTier } from "@/lib/gemini-usage"
 
-// Límites del free tier de gemini-2.5-flash-lite (actualizar si cambia el plan)
-const FREE_TIER = {
-  requestsPerMinute: 15,
-  requestsPerDay: 1000,
-  tokensPerMinute: 250_000,
-  tokensPerDay: 1_000_000,
+function keyInfo(): { keyConfigured: boolean; keyPreview: string | null } {
+  const k = process.env.GEMINI_API_KEY
+  if (!k) return { keyConfigured: false, keyPreview: null }
+  return { keyConfigured: true, keyPreview: `${k.slice(0, 6)}...${k.slice(-4)}` }
 }
 
 export async function GET(request: NextRequest) {
@@ -24,57 +28,53 @@ export async function GET(request: NextRequest) {
   const user = await verifyToken(token)
   if (!user) return NextResponse.json({ error: "Token inválido" }, { status: 401 })
 
-  await ensureDbReady()
-  const db = getDb()
+  try {
+    const summary = await getUsageSummary()
 
-  const today = new Date().toISOString().split("T")[0]
+    // Usuarios no admin: payload mínimo (solo para el aviso de cuota del laboratorio).
+    if (user.role !== "admin") {
+      return NextResponse.json({
+        tier: summary.tier,
+        daily: { percentUsed: summary.daily.percentUsed, requestsRemaining: summary.daily.requestsRemaining },
+        limits: summary.limits,
+        reset: summary.reset,
+      })
+    }
 
-  // Contar insights generados hoy (proxy de llamadas a Gemini)
-  // Los fallbacks y caché no llegan a Gemini, así que los excluimos si podemos.
-  // Como no almacenamos el source, contamos todos los ai_insights de hoy.
-  const todayResult = await db.execute({
-    sql: "SELECT COUNT(*) as cnt FROM ai_insights WHERE user_id = ? AND DATE(created_at) = ?",
-    args: [user.id, today],
-  })
-  const todayCount = Number(todayResult.rows[0]?.cnt ?? 0)
+    // Admin: datos completos y reales.
+    return NextResponse.json({
+      ...summary,
+      model: GEMINI_CONFIG.model,
+      ...keyInfo(),
+      note:
+        "El consumo se calcula con los tokens reales (usageMetadata) que Gemini devuelve en cada llamada, " +
+        "registrados a nivel de la API key. La cuota restante es una estimación frente a los límites del plan: " +
+        "Google no expone la cuota en vivo. La caché y los fallbacks no consumen cuota.",
+    })
+  } catch (error) {
+    console.error("[gemini/usage] GET Error:", error)
+    return NextResponse.json({ error: "No se pudo calcular el uso" }, { status: 500 })
+  }
+}
 
-  // Contar del mes en curso
-  const monthStart = today.substring(0, 7) + "-01"
-  const monthResult = await db.execute({
-    sql: "SELECT COUNT(*) as cnt FROM ai_insights WHERE user_id = ? AND created_at >= ?",
-    args: [user.id, monthStart],
-  })
-  const monthCount = Number(monthResult.rows[0]?.cnt ?? 0)
+export async function PUT(request: NextRequest) {
+  const token = request.cookies.get("auth-token")?.value
+  if (!token) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
+  const user = await verifyToken(token)
+  if (!user || user.role !== "admin") {
+    return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
+  }
 
-  // Última llamada registrada
-  const lastResult = await db.execute({
-    sql: "SELECT created_at, analysis_type FROM ai_insights WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
-    args: [user.id],
-  })
-  const lastCall = lastResult.rows[0] ?? null
-
-  const percentUsedToday = Math.min(100, Math.round((todayCount / FREE_TIER.requestsPerDay) * 100))
-
-  return NextResponse.json({
-    today: {
-      calls: todayCount,
-      limit: FREE_TIER.requestsPerDay,
-      percentUsed: percentUsedToday,
-      remaining: Math.max(0, FREE_TIER.requestsPerDay - todayCount),
-    },
-    month: {
-      calls: monthCount,
-    },
-    limits: {
-      rpm: FREE_TIER.requestsPerMinute,
-      rpd: FREE_TIER.requestsPerDay,
-      tpm: FREE_TIER.tokensPerMinute,
-      tpd: FREE_TIER.tokensPerDay,
-    },
-    lastCall: lastCall
-      ? { at: lastCall.created_at as string, type: lastCall.analysis_type as string }
-      : null,
-    model: "gemini-2.5-flash-lite",
-    note: "El contador refleja registros en ai_insights (proxy de llamadas reales). Los fallbacks y caché no cuentan.",
-  })
+  try {
+    const body = await request.json().catch(() => ({}))
+    const tier = body?.tier
+    if (tier !== "free" && tier !== "paid") {
+      return NextResponse.json({ error: "tier inválido (usa 'free' o 'paid')" }, { status: 400 })
+    }
+    await setKeyTier(tier)
+    return NextResponse.json({ ok: true, tier })
+  } catch (error) {
+    console.error("[gemini/usage] PUT Error:", error)
+    return NextResponse.json({ error: "No se pudo actualizar el tier" }, { status: 500 })
+  }
 }

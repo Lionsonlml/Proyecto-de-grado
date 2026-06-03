@@ -22,6 +22,7 @@ import { AppLayout } from "@/components/app-layout"
 import { format, addDays, addWeeks, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
 import { es } from "date-fns/locale"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
+import { toBogotaDateStr, todayColombia } from "@/lib/timezone"
 
 type CalendarView = "day" | "week" | "month"
 type DayMode = "detailed" | "compact"
@@ -64,8 +65,8 @@ export default function SchedulePage() {
 
   const { toast } = useToast()
 
-  // ── Strings de fecha ────────────────────────────────────────────────────────
-  const dateStr = currentDate.toISOString().split("T")[0]
+  // ── Strings de fecha (día calendario en Colombia) ───────────────────────────
+  const dateStr = toBogotaDateStr(currentDate)
 
   // ── Helpers: calcular tiempo de fin ─────────────────────────────────────────
   const calculateEndTime = (startTime: string, durationMin: number) => {
@@ -138,7 +139,7 @@ export default function SchedulePage() {
         const last = insights[0]
         const scheduleItems: any[] = JSON.parse(last.response)
         if (!Array.isArray(scheduleItems) || scheduleItems.length === 0) return
-        const today = new Date().toISOString().split("T")[0]
+        const today = todayColombia()
         const targetDate = last.metadata
           ? (() => { try { return JSON.parse(last.metadata)?.date || today } catch { return today } })()
           : today
@@ -296,7 +297,7 @@ export default function SchedulePage() {
   }
 
   const openAddBlock = (date?: Date) => {
-    const targetDate = date ? date.toISOString().split("T")[0] : dateStr
+    const targetDate = date ? toBogotaDateStr(date) : dateStr
     setAddBlockDate(targetDate)
     setAddBlockMode("nueva")
     setNewBlockTitle("")

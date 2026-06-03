@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Brain, CheckCircle2, RefreshCw, Shuffle, Eye, Calculator, Layers } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -44,6 +44,8 @@ const STROOP_PALETTE = [
   { word: "AMARILLO", inkHex: "#a855f7", inkName: "Morado"   },
   { word: "MORADO",   inkHex: "#f97316", inkName: "Naranja"  },
   { word: "NARANJA",  inkHex: "#eab308", inkName: "Amarillo" },
+  { word: "ROSA",     inkHex: "#06b6d4", inkName: "Cian"     },
+  { word: "CIAN",     inkHex: "#ec4899", inkName: "Rosa"     },
 ]
 
 type StroopItem = {
@@ -54,7 +56,7 @@ type StroopItem = {
 }
 
 function buildStroopItems(): StroopItem[] {
-  return shuffle(STROOP_PALETTE).slice(0, 5).map(item => ({
+  return shuffle(STROOP_PALETTE).slice(0, 7).map(item => ({
     ...item,
     options: shuffle([
       { name: item.inkName, hex: item.inkHex },
@@ -65,38 +67,79 @@ function buildStroopItems(): StroopItem[] {
   }))
 }
 
+const STROOP_PER_ITEM_MS = 3500 // tiempo máximo por ítem (presión temporal)
+const STROOP_FEEDBACK_MS = 450  // duración del feedback antes de avanzar
+
+// Barra de cuenta atrás reutilizable: se anima de lleno a vacío en `duration` ms.
+function CountdownBar({ duration }: { duration: number }) {
+  const [shrunk, setShrunk] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShrunk(true), 20)
+    return () => clearTimeout(t)
+  }, [])
+  return (
+    <div className="h-1.5 w-full bg-muted/50 rounded-full overflow-hidden" aria-hidden="true">
+      <div
+        className="h-full rounded-full bg-primary origin-left"
+        style={{
+          transform: shrunk ? "scaleX(0)" : "scaleX(1)",
+          transition: `transform ${duration}ms linear`,
+        }}
+      />
+    </div>
+  )
+}
+
 function StroopTestBody({ onComplete }: MiniTestProps) {
   const [phase, setPhase] = useState<Phase>("idle")
   const [items, setItems] = useState<StroopItem[]>([])
   const [idx, setIdx] = useState(0)
   const [correctCount, setCorrectCount] = useState(0)
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null)
+  const lockRef = useRef(false) // evita doble resolución (clic + timeout)
 
   const start = () => {
     setItems(buildStroopItems())
     setIdx(0)
     setCorrectCount(0)
     setFeedback(null)
+    lockRef.current = false
     setPhase("running")
   }
 
-  const handleAnswer = (optionName: string) => {
-    if (feedback !== null) return
-    const isCorrect = optionName === items[idx].inkName
-    const newCorrect = correctCount + (isCorrect ? 1 : 0)
-    setFeedback(isCorrect ? "correct" : "wrong")
+  const resolve = (wasCorrect: boolean) => {
+    if (lockRef.current) return
+    lockRef.current = true
+    const newCorrect = correctCount + (wasCorrect ? 1 : 0)
+    setFeedback(wasCorrect ? "correct" : "wrong")
 
     setTimeout(() => {
-      setFeedback(null)
       if (idx + 1 >= items.length) {
         const score = Math.round((newCorrect / items.length) * 100)
         setPhase("done")
         onComplete({ score, testId: "stroop", testName: "Stroop" })
       } else {
+        lockRef.current = false
+        setFeedback(null)
         setCorrectCount(newCorrect)
         setIdx(i => i + 1)
       }
-    }, 550)
+    }, STROOP_FEEDBACK_MS)
+  }
+
+  // Mantener la última versión de `resolve` para que el temporizador use estado fresco.
+  const resolveRef = useRef(resolve)
+  resolveRef.current = resolve
+
+  // Cuenta atrás por ítem: si se agota el tiempo cuenta como error y avanza.
+  useEffect(() => {
+    if (phase !== "running" || feedback !== null || items.length === 0) return
+    const t = setTimeout(() => resolveRef.current(false), STROOP_PER_ITEM_MS)
+    return () => clearTimeout(t)
+  }, [phase, feedback, idx, items.length])
+
+  const handleAnswer = (optionName: string) => {
+    resolve(optionName === items[idx].inkName)
   }
 
   if (phase === "idle") {
@@ -129,6 +172,8 @@ function StroopTestBody({ onComplete }: MiniTestProps) {
         </div>
       </div>
 
+      {feedback === null && <CountdownBar key={idx} duration={STROOP_PER_ITEM_MS} />}
+
       <p className="text-xs text-center text-muted-foreground">
         ¿Cuál es el <strong>color de la tinta</strong>?
       </p>
@@ -146,25 +191,29 @@ function StroopTestBody({ onComplete }: MiniTestProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        {current.options.map(opt => (
-          <button
-            key={opt.name}
-            type="button"
-            onClick={() => handleAnswer(opt.name)}
-            disabled={feedback !== null}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium",
-              "transition-all hover:border-primary/60 hover:bg-muted/50",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-            )}
-          >
-            <span
-              className="inline-block h-4 w-4 rounded-full shrink-0 border border-black/10 dark:border-white/10"
-              style={{ background: opt.hex }}
-            />
-            {opt.name}
-          </button>
-        ))}
+        {current.options.map(opt => {
+          const showRight = feedback !== null && opt.name === current.inkName
+          return (
+            <button
+              key={opt.name}
+              type="button"
+              onClick={() => handleAnswer(opt.name)}
+              disabled={feedback !== null}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium",
+                "transition-all hover:border-primary/60 hover:bg-muted/50",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                showRight && "border-green-500 bg-green-500/10",
+              )}
+            >
+              <span
+                className="inline-block h-4 w-4 rounded-full shrink-0 border border-black/10 dark:border-white/10"
+                style={{ background: opt.hex }}
+              />
+              {opt.name}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -174,9 +223,11 @@ function StroopTestBody({ onComplete }: MiniTestProps) {
 // TEST 2: MEMORY SPAN (memoria de trabajo)
 // ═════════════════════════════════════════════════════════════════════════════
 
+const MEMORY_SEQ_LEN = 6   // largo de la secuencia a memorizar
+const MEMORY_SHOW_MS = 700  // ritmo de presentación (más rápido = mayor exigencia)
+
 function MemoryTestBody({ onComplete }: MiniTestProps) {
   type MPhase = "idle" | "showing" | "input" | "feedback"
-  const SEQ_LEN = 5
 
   const [phase, setPhase] = useState<MPhase>("idle")
   const [sequence, setSequence] = useState<number[]>([])
@@ -190,15 +241,15 @@ function MemoryTestBody({ onComplete }: MiniTestProps) {
       const t = setTimeout(() => {
         setDisplayIdx(-1)
         setPhase("input")
-      }, 900)
+      }, MEMORY_SHOW_MS)
       return () => clearTimeout(t)
     }
-    const t = setTimeout(() => setDisplayIdx(i => i + 1), 900)
+    const t = setTimeout(() => setDisplayIdx(i => i + 1), MEMORY_SHOW_MS)
     return () => clearTimeout(t)
   }, [phase, displayIdx, sequence.length])
 
   const start = () => {
-    const seq = Array.from({ length: SEQ_LEN }, () => Math.floor(Math.random() * 9) + 1)
+    const seq = Array.from({ length: MEMORY_SEQ_LEN }, () => Math.floor(Math.random() * 9) + 1)
     setSequence(seq)
     setUserInput([])
     setDisplayIdx(0)
@@ -294,7 +345,7 @@ function MemoryTestBody({ onComplete }: MiniTestProps) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 function VisualSearchTestBody({ onComplete }: MiniTestProps) {
-  const TOTAL_ROUNDS = 5
+  const TOTAL_ROUNDS = 7
   const GRID_SIZE = 12 // 4 col x 3 fil
   const BASE_HUE = 240 // azul/índigo
 
@@ -305,13 +356,14 @@ function VisualSearchTestBody({ onComplete }: MiniTestProps) {
   const [oddIdx, setOddIdx] = useState(0)
 
   const generateRound = (r: number) => {
-    // Dificultad creciente: el "odd" tiene cada vez menos diferencia
-    const lightDiff = Math.max(10, 35 - r * 5) // round 0: 35%, round 4: 15%
+    // Dificultad creciente: el "odd" tiene cada vez menos diferencia.
+    // r0: 30% … r6: 8% (más sutil que antes para afinar la medición).
+    const lightDiff = Math.max(8, 30 - r * 4)
     setOddIdx(Math.floor(Math.random() * GRID_SIZE))
     return lightDiff
   }
 
-  const [lightDiff, setLightDiff] = useState(35)
+  const [lightDiff, setLightDiff] = useState(30)
 
   const start = () => {
     setRound(0)
@@ -412,23 +464,41 @@ function VisualSearchTestBody({ onComplete }: MiniTestProps) {
 type MathProblem = {
   a: number
   b: number
-  op: "+" | "-"
+  op: "+" | "-" | "×"
   answer: number
   options: number[]
 }
 
+const MATH_OPS = ["+", "-", "×"] as const
+
 function generateMathProblems(n: number): MathProblem[] {
   return Array.from({ length: n }, () => {
-    const a  = Math.floor(Math.random() * 12) + 2 // 2-13
-    const b  = Math.floor(Math.random() * 9)  + 2 // 2-10
-    const op = Math.random() > 0.5 ? "+" : "-"
-    const answer = op === "+" ? a + b : Math.abs(a - b)
+    const op = MATH_OPS[Math.floor(Math.random() * MATH_OPS.length)]
 
+    let a: number
+    let b: number
+    let answer: number
+
+    if (op === "×") {
+      // Multiplicación de un dígito alto (4-10) para subir la exigencia.
+      a = Math.floor(Math.random() * 7) + 4 // 4-10
+      b = Math.floor(Math.random() * 7) + 4 // 4-10
+      answer = a * b
+    } else {
+      // Sumas/restas de dos cifras. La resta conserva su signo real, de modo
+      // que el resultado puede ser negativo y aparecer entre las opciones.
+      a = Math.floor(Math.random() * 40) + 10 // 10-49
+      b = Math.floor(Math.random() * 40) + 10 // 10-49
+      answer = op === "+" ? a + b : a - b
+    }
+
+    // Distractores cercanos a la respuesta; pueden ser negativos para que las
+    // restas con resultado negativo tengan opciones plausibles.
+    const spread = op === "×" ? 8 : 5
     const options = new Set<number>([answer])
     while (options.size < 4) {
-      const delta = Math.floor(Math.random() * 9) - 4 // -4..+4
-      const wrong = answer + delta
-      if (wrong > 0 && wrong !== answer) options.add(wrong)
+      const delta = Math.floor(Math.random() * (2 * spread + 1)) - spread
+      if (delta !== 0) options.add(answer + delta)
     }
     return { a, b, op, answer, options: shuffle(Array.from(options)) }
   })
@@ -541,15 +611,15 @@ const TEST_LIBRARY = [
   {
     id: "stroop",
     name: "Stroop",
-    description: "Mide tu control de inhibición: identifica el color de la tinta ignorando lo que dice la palabra.",
-    duration: "~25 s",
+    description: "Mide tu control de inhibición: identifica el color de la tinta ignorando lo que dice la palabra, contra el reloj.",
+    duration: "~30 s",
     icon: Layers,
     Component: StroopTestBody,
   },
   {
     id: "memory",
     name: "Memoria de Trabajo",
-    description: "Mide tu memoria a corto plazo: memoriza una secuencia de 5 números y reprodúcela.",
+    description: "Mide tu memoria a corto plazo: memoriza una secuencia de 6 números y reprodúcela.",
     duration: "~20 s",
     icon: Brain,
     Component: MemoryTestBody,
@@ -558,15 +628,15 @@ const TEST_LIBRARY = [
     id: "visual-search",
     name: "Búsqueda Visual",
     description: "Mide tu atención selectiva: encuentra el círculo ligeramente diferente entre 12.",
-    duration: "~30 s",
+    duration: "~35 s",
     icon: Eye,
     Component: VisualSearchTestBody,
   },
   {
     id: "math",
     name: "Atención Numérica",
-    description: "Mide tu velocidad de cálculo bajo presión: resuelve 5 operaciones mentales rápidas.",
-    duration: "~25 s",
+    description: "Mide tu velocidad de cálculo bajo presión: resuelve 5 operaciones (sumas, restas con negativos y multiplicaciones).",
+    duration: "~30 s",
     icon: Calculator,
     Component: MathTestBody,
   },

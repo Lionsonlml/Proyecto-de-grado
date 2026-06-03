@@ -22,8 +22,14 @@ import {
   Zap,
   AlertTriangle,
   LogOut,
+  KeyRound,
+  Gauge,
+  Clock,
+  Coins,
 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { getCachedUser, clearAllCache, invalidateUserCache } from "@/lib/client-cache"
+import { formatBogotaDateTime } from "@/lib/timezone"
 
 interface AdminStats {
   users: {
@@ -93,6 +99,24 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
   )
 }
 
+function fmtNum(n: number | null | undefined): string {
+  return Number(n ?? 0).toLocaleString("es-CO")
+}
+
+function fmtUsd(n: number | null | undefined): string {
+  const v = Number(n ?? 0)
+  if (v === 0) return "$0.00"
+  if (v < 0.01) return "$" + v.toFixed(4)
+  return "$" + v.toFixed(2)
+}
+
+function fmtDuration(ms: number | null | undefined): string {
+  const totalMin = Math.max(0, Math.floor((ms ?? 0) / 60000))
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [adminName, setAdminName] = useState("")
@@ -100,8 +124,9 @@ export default function AdminPage() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [testLoading, setTestLoading] = useState(false)
   const [testResult, setTestResult] = useState<any>(null)
-  const [usageLoading, setUsageLoading] = useState(false)
+  const [usageLoading, setUsageLoading] = useState(true)
   const [usageData, setUsageData] = useState<any>(null)
+  const [tierSaving, setTierSaving] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -130,9 +155,40 @@ export default function AdminPage() {
     }
   }, [router])
 
+  const loadUsage = useCallback(async () => {
+    setUsageLoading(true)
+    try {
+      const res = await fetch("/api/gemini/usage")
+      setUsageData(await res.json())
+    } catch {
+      setUsageData({ error: "No se pudo cargar el uso" })
+    } finally {
+      setUsageLoading(false)
+    }
+  }, [])
+
+  const handleSetTier = async (tier: "free" | "paid") => {
+    setTierSaving(true)
+    try {
+      await fetch("/api/gemini/usage", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier }),
+      })
+      await loadUsage()
+    } catch {
+      // ignorar — el switch vuelve a su estado real al recargar
+    } finally {
+      setTierSaving(false)
+    }
+  }
+
   useEffect(() => {
-    if (authChecked) loadStats()
-  }, [authChecked, loadStats])
+    if (authChecked) {
+      loadStats()
+      loadUsage()
+    }
+  }, [authChecked, loadStats, loadUsage])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -156,18 +212,6 @@ export default function AdminPage() {
       setTestResult({ status: "error", stage: "network", message: "Error de red al conectar con el servidor" })
     } finally {
       setTestLoading(false)
-    }
-  }
-
-  const handleLoadUsage = async () => {
-    setUsageLoading(true)
-    try {
-      const res = await fetch("/api/gemini/usage")
-      setUsageData(await res.json())
-    } catch {
-      setUsageData({ error: "No se pudo cargar el uso" })
-    } finally {
-      setUsageLoading(false)
     }
   }
 
@@ -499,89 +543,163 @@ export default function AdminPage() {
           </Card>
         </section>
 
-        {/* ── Cuota Gemini ─────────────────────────────────────── */}
+        {/* ── Consumo y cuota Gemini ───────────────────────────── */}
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
-            <BarChart2 className="h-4 w-4" /> Cuota de Gemini API
-          </h2>
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs">
-                Estimación de llamadas realizadas hoy vs límites del plan gratuito · gemini-2.5-flash-lite · 15 RPM · 1.000 RPD
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-3">
-              <Button onClick={handleLoadUsage} disabled={usageLoading} variant="outline" className="w-full gap-2">
-                {usageLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Cargando...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    Ver uso actual
-                  </>
-                )}
-              </Button>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
+              <BarChart2 className="h-4 w-4" /> Consumo y cuota de Gemini API
+            </h2>
+            <Button variant="outline" size="sm" onClick={loadUsage} disabled={usageLoading} className="gap-2 shrink-0">
+              <RefreshCw className={`h-4 w-4 ${usageLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Actualizar</span>
+            </Button>
+          </div>
 
-              {usageData && !usageData.error && (
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                      <span>Solicitudes hoy</span>
-                      <span className="font-medium">
-                        {usageData.today.calls} / {usageData.today.limit.toLocaleString()} ({usageData.today.percentUsed}%)
-                      </span>
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              {usageLoading && !usageData ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : usageData?.error ? (
+                <p className="text-xs text-destructive">{usageData.error}</p>
+              ) : usageData ? (
+                <>
+                  {/* Encabezado: tier + toggle, modelo, key */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant={usageData.tier === "paid" ? "default" : "secondary"}>
+                          {usageData.tier === "paid" ? "Key de pago" : "Key gratuita"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground font-mono">{usageData.model}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <KeyRound className="h-3 w-3 shrink-0" />
+                        {usageData.keyConfigured ? (
+                          <span className="font-mono">{usageData.keyPreview}</span>
+                        ) : (
+                          <span className="text-destructive">Sin GEMINI_API_KEY configurada</span>
+                        )}
+                      </p>
                     </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all ${
-                          usageData.today.percentUsed >= 90
-                            ? "bg-red-500"
-                            : usageData.today.percentUsed >= 70
-                            ? "bg-yellow-500"
-                            : "bg-green-500"
-                        }`}
-                        style={{ width: `${usageData.today.percentUsed}%` }}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs ${usageData.tier === "free" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                        Gratuita
+                      </span>
+                      <Switch
+                        checked={usageData.tier === "paid"}
+                        disabled={tierSaving}
+                        onCheckedChange={(v) => handleSetTier(v ? "paid" : "free")}
+                        aria-label="Alternar tier de la key (gratuita / de pago)"
                       />
+                      <span className={`text-xs ${usageData.tier === "paid" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                        De pago
+                      </span>
                     </div>
                   </div>
 
+                  <p className="text-[11px] text-muted-foreground -mt-1">
+                    Marca si la key activa es de pago o gratuita. Esto ajusta los límites del plan y el coste estimado que se muestran abajo.
+                  </p>
+
+                  {/* Cuota diaria (RPD) — solo el plan gratuito tiene tope diario */}
+                  {usageData.limits.rpd != null ? (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Gauge className="h-3.5 w-3.5" /> Solicitudes hoy (cuota diaria)</span>
+                        <span className="font-medium text-foreground">
+                          {fmtNum(usageData.daily.requests)} / {fmtNum(usageData.limits.rpd)} ({usageData.daily.percentUsed}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            usageData.daily.percentUsed >= 90
+                              ? "bg-red-500"
+                              : usageData.daily.percentUsed >= 70
+                              ? "bg-yellow-500"
+                              : "bg-green-500"
+                          }`}
+                          style={{ width: `${usageData.daily.percentUsed}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Quedan <span className="font-semibold text-foreground">{fmtNum(usageData.daily.requestsRemaining)}</span> solicitudes antes de agotar la cuota (pasaría a modo fallback).
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-2 rounded-lg bg-muted/50 text-xs text-muted-foreground">
+                      Plan de pago: sin tope diario práctico de solicitudes. El control relevante es el coste estimado (abajo).
+                    </div>
+                  )}
+
+                  {/* Refresco de la cuota */}
+                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      La cuota diaria se refresca en{" "}
+                      <span className="font-semibold text-foreground">{fmtDuration(usageData.reset.dailyInMs)}</span>{" "}
+                      (≈ {formatBogotaDateTime(usageData.reset.dailyAtIso)}, hora Colombia · medianoche del Pacífico).
+                    </span>
+                  </div>
+
+                  {/* Métricas rápidas */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     {[
-                      { label: "Restantes hoy", value: usageData.today.remaining.toLocaleString() },
-                      { label: "Este mes", value: usageData.month.calls },
-                      { label: "Límite / min", value: `${usageData.limits.rpm} rpm` },
-                      { label: "Límite / día", value: usageData.limits.rpd.toLocaleString() },
+                      { label: "Tokens hoy", value: fmtNum(usageData.daily.totalTokens), icon: Zap },
+                      { label: "Tokens este mes", value: fmtNum(usageData.month.totalTokens), icon: Database },
+                      { label: "Solicitudes mes", value: fmtNum(usageData.month.requests), icon: TrendingUp },
+                      { label: "Último minuto", value: `${fmtNum(usageData.minute.requests)}/${fmtNum(usageData.limits.rpm)} rpm`, icon: Gauge },
                     ].map((item) => (
                       <div key={item.label} className="p-2 rounded-lg bg-muted/50">
-                        <p className="text-muted-foreground">{item.label}</p>
+                        <p className="text-muted-foreground flex items-center gap-1">
+                          <item.icon className="h-3 w-3 shrink-0" />
+                          {item.label}
+                        </p>
                         <p className="font-bold text-sm">{item.value}</p>
                       </div>
                     ))}
                   </div>
 
-                  {usageData.lastCall && (
-                    <p className="text-xs text-muted-foreground">
-                      Última llamada: <span className="font-medium">{usageData.lastCall.type}</span> —{" "}
-                      {new Date(usageData.lastCall.at).toLocaleString("es-ES")}
+                  {/* Coste estimado */}
+                  <div className="p-3 rounded-lg border bg-muted/30 space-y-1">
+                    <p className="text-xs font-semibold flex items-center gap-1.5">
+                      <Coins className="h-3.5 w-3.5 text-amber-500" /> Coste estimado
                     </p>
-                  )}
+                    {usageData.cost.isFree ? (
+                      <p className="text-xs text-muted-foreground">
+                        Plan gratuito: <span className="font-semibold text-green-600">$0.00</span> este mes. En un plan de pago equivaldría a ≈{" "}
+                        <span className="font-semibold text-foreground">{fmtUsd(usageData.cost.monthUsd)}</span>{" "}
+                        (proyección a fin de mes ≈ {fmtUsd(usageData.cost.projectedMonthUsd)}).
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Este mes ≈ <span className="font-semibold text-foreground">{fmtUsd(usageData.cost.monthUsd)}</span> · hoy ≈ {fmtUsd(usageData.cost.todayUsd)} · proyección a fin de mes ≈{" "}
+                        <span className="font-semibold text-foreground">{fmtUsd(usageData.cost.projectedMonthUsd)}</span>.
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground opacity-80">
+                      Precio de referencia: entrada {fmtUsd(usageData.cost.perMillion.input)} · salida {fmtUsd(usageData.cost.perMillion.output)} por millón de tokens.
+                    </p>
+                  </div>
 
-                  {usageData.today.percentUsed >= 80 && (
+                  {/* Alerta de cuota */}
+                  {usageData.limits.rpd != null && usageData.daily.percentUsed >= 80 && (
                     <div className="p-2 rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 text-xs text-yellow-800 dark:text-yellow-300">
-                      Cuota al {usageData.today.percentUsed}% — Los análisis pueden usar el modo fallback pronto.
+                      Cuota al {usageData.daily.percentUsed}% — al agotarse, los análisis usarán el modo fallback hasta el refresco.
                     </div>
                   )}
 
-                  <p className="text-xs text-muted-foreground opacity-70">{usageData.note}</p>
-                </div>
-              )}
+                  {usageData.lastCall && (
+                    <p className="text-xs text-muted-foreground">
+                      Última llamada real: {formatBogotaDateTime(usageData.lastCall.at)} · {fmtNum(usageData.lastCall.totalTokens)} tokens
+                    </p>
+                  )}
 
-              {usageData?.error && (
-                <p className="text-xs text-destructive">{usageData.error}</p>
-              )}
+                  <p className="text-[11px] text-muted-foreground opacity-70">{usageData.note}</p>
+                </>
+              ) : null}
             </CardContent>
           </Card>
         </section>

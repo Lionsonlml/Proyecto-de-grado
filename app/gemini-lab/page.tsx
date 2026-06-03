@@ -55,8 +55,8 @@ export default function GeminiLabPage() {
         const res = await fetch("/api/gemini/usage")
         if (!res.ok) return
         const data = await res.json()
-        if (data?.today?.percentUsed != null) {
-          setQuotaPercent(data.today.percentUsed)
+        if (data?.daily?.percentUsed != null) {
+          setQuotaPercent(data.daily.percentUsed)
         }
       } catch {
         // ignorar — es informativo
@@ -91,8 +91,8 @@ export default function GeminiLabPage() {
                 title={quotaPercent >= 90 ? "Cuota de IA casi agotada" : "Cuota de IA al " + quotaPercent + "%"}
                 message={
                   quotaPercent >= 90
-                    ? "La cuota diaria del servicio de IA está casi agotada (plan gratuito: 1.000 solicitudes/día). Los análisis pueden usar respuestas de respaldo hasta las 00:00 UTC, cuando se restablece la cuota."
-                    : "Se ha usado más del 70% de la cuota diaria de IA. Si se agota, los análisis usarán respuestas predefinidas de forma temporal. La cuota se restablece cada día a las 00:00 UTC."
+                    ? "La cuota diaria del servicio de IA está casi agotada (plan gratuito: 1.000 solicitudes/día). Los análisis pueden usar respuestas de respaldo hasta que la cuota se restablezca a la medianoche (hora del Pacífico)."
+                    : "Se ha usado más del 70% de la cuota diaria de IA. Si se agota, los análisis usarán respuestas predefinidas de forma temporal. La cuota se restablece cada día a la medianoche (hora del Pacífico)."
                 }
                 dismissId={`quota-warn-${new Date().toDateString()}`}
               />

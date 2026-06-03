@@ -1,32 +1,24 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { COLOMBIA_TZ, nowColombia, parseDbTimestamp } from '@/lib/timezone'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Función para obtener la fecha y hora actual en la zona horaria local
+// Fecha y hora actual coherentes con la hora local de Colombia (UTC-5).
+// (En Vercel el servidor corre en UTC; por eso delegamos a nowColombia.)
 export function getCurrentDateTime() {
-  const now = new Date()
-  return {
-    date: now.toISOString().split('T')[0], // YYYY-MM-DD
-    time: now.toLocaleTimeString('es-ES', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    }), // HH:MM
-    hour: now.getHours(),
-    timestamp: now.toISOString()
-  }
+  return nowColombia()
 }
 
-// Función para formatear fechas en español
+// Función para formatear fechas en español (hora de Colombia)
 export function formatDateSpanish(dateString: string) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('es-ES', {
+  return parseDbTimestamp(dateString).toLocaleDateString('es-ES', {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    timeZone: COLOMBIA_TZ,
   })
 }

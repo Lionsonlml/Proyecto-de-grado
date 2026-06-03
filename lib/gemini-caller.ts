@@ -1,4 +1,5 @@
 import { GEMINI_CONFIG } from "./gemini-config"
+import { recordGeminiUsage } from "./gemini-usage"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -7,11 +8,19 @@ export interface GeminiCallConfig {
   temperature?: number
   maxOutputTokens?: number
   systemInstruction?: string // Coach Conductual / Evaluador Crítico
+  endpoint?: string // etiqueta opcional para atribuir el consumo (p. ej. "analyze:patterns")
+}
+
+export interface GeminiTokenUsage {
+  promptTokens: number
+  candidatesTokens: number
+  totalTokens: number
 }
 
 export interface GeminiResult {
   text: string
   attempts: number
+  usage?: GeminiTokenUsage
 }
 
 export class GeminiRetryError extends Error {
@@ -104,7 +113,23 @@ export async function callGeminiWithRetry(
         throw new Error(`Respuesta vacía (finishReason: ${reason})`)
       }
 
-      return { text, attempts: attempt }
+      // Tokens reales reportados por Gemini (usageMetadata)
+      const meta = data.usageMetadata ?? {}
+      const promptTokens = Number(meta.promptTokenCount ?? 0)
+      const candidatesTokens = Number(meta.candidatesTokenCount ?? 0)
+      const totalTokens = Number(meta.totalTokenCount ?? promptTokens + candidatesTokens)
+
+      // Registro best-effort del consumo a nivel de key (no interrumpe la respuesta)
+      await recordGeminiUsage({
+        model: GEMINI_CONFIG.model,
+        endpoint: config.endpoint ?? null,
+        promptTokens,
+        candidatesTokens,
+        totalTokens,
+        attempts: attempt,
+      })
+
+      return { text, attempts: attempt, usage: { promptTokens, candidatesTokens, totalTokens } }
     } catch (err) {
       const status = (err as any).status ?? 0
       lastError = err as Error

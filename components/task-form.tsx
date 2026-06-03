@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import type { Task, SubTask } from "@/lib/types"
 import { X, Loader2, Sparkles, Repeat, Lock, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { todayColombia } from "@/lib/timezone"
 
 interface TaskFormProps {
   task?: Task
@@ -35,7 +36,7 @@ const MAX_SUBTASK_TITLE = 100
 const MAX_DURATION_MIN = 480  // 8 horas
 
 export function TaskForm({ task, onSubmit, onCancel }: TaskFormProps) {
-  const today = new Date().toISOString().split("T")[0]
+  const today = todayColombia()
 
   const [title, setTitle] = useState(task?.title || "")
   const [description, setDescription] = useState(task?.description || "")

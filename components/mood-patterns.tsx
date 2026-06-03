@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import type { Mood } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { formatBogotaShortDate, getBogotaHour, parseDbTimestamp } from "@/lib/timezone"
 
 interface MoodPatternsProps {
   moods: Mood[]
@@ -62,12 +63,11 @@ const MOOD_LABELS: Record<Mood["mood"], string> = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getHourFromTimestamp(ts: string): number {
-  return new Date(ts).getHours()
+  return getBogotaHour(ts)
 }
 
 function getShortDate(ts: string): string {
-  const d = new Date(ts)
-  return d.toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+  return formatBogotaShortDate(ts)
 }
 
 // ─── Componente principal ───────────────────────────────────────────────────
@@ -79,7 +79,7 @@ const avgRound = (values: number[]): number =>
 
 function buildSortedByDate(moods: Mood[]): Mood[] {
   return [...moods].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    (a, b) => parseDbTimestamp(a.timestamp).getTime() - parseDbTimestamp(b.timestamp).getTime(),
   )
 }
 

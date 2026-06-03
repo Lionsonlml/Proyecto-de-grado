@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { TrendingUp, Loader2 } from "lucide-react"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 import { AiInfoBanner } from "@/components/ai-info-banner"
+import { formatBogotaDate } from "@/lib/timezone"
 
 interface PatternAnalysisProps {
   onResponseGenerated?: (response: string) => void
@@ -112,7 +113,7 @@ export function PatternAnalysis({ onResponseGenerated, initialResult, initialGen
         </Button>
         {generatedAt && !loading && (
           <p className="text-xs text-muted-foreground text-center">
-            Último análisis: {new Date(generatedAt).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+            Último análisis: {formatBogotaDate(generatedAt)}
           </p>
         )}
 

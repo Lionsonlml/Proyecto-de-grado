@@ -1,5 +1,6 @@
 import { createClient, Client } from "@libsql/client"
 import { hash } from "bcryptjs"
+import { toBogotaDateStr } from "@/lib/timezone"
 
 // ─── Singleton ────────────────────────────────────────────────────────────────
 // En Vercel (serverless) cada cold-start crea un nuevo proceso. Con Turso la DB
@@ -192,6 +193,26 @@ async function initializeTables(db: Client): Promise<void> {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    -- Consumo real de tokens por llamada a Gemini (a nivel de KEY, no de usuario,
+    -- porque la cuota de la API es por key/proyecto). created_at en UTC naive.
+    CREATE TABLE IF NOT EXISTS gemini_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      model TEXT,
+      endpoint TEXT,
+      prompt_tokens INTEGER DEFAULT 0,
+      candidates_tokens INTEGER DEFAULT 0,
+      total_tokens INTEGER DEFAULT 0,
+      attempts INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Ajustes globales clave/valor del sistema (p. ej. el tier de la key Gemini).
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_moods_user_date ON moods(user_id, date);
@@ -206,6 +227,7 @@ async function initializeTables(db: Client): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_data_access_logs_accessed ON data_access_logs(accessed_at);
     CREATE INDEX IF NOT EXISTS idx_2fa_codes_hash ON two_factor_codes(temp_token_hash);
     CREATE INDEX IF NOT EXISTS idx_reset_tokens_hash ON password_reset_tokens(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_gemini_usage_created ON gemini_usage(created_at);
   `)
 
   // ─── Migraciones: nuevas columnas tasks (idempotentes via try/catch) ──────────
@@ -345,7 +367,7 @@ export async function createRecurringNextTask(db: any, originalTask: any, userId
 // ─── Helpers de Fecha ─────────────────────────────────────────────────────────
 
 function daysAgo(n: number): string {
-  return new Date(Date.now() - n * 86400000).toISOString().split("T")[0]
+  return toBogotaDateStr(new Date(Date.now() - n * 86400000))
 }
 
 // ─── Seed Maestro ─────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { TimeBlock, Task } from "@/lib/types"
 import { X } from "lucide-react"
+import { todayColombia } from "@/lib/timezone"
 
 interface TimeBlockFormProps {
   block?: TimeBlock
@@ -21,7 +22,7 @@ interface TimeBlockFormProps {
 
 export function TimeBlockForm({ block, tasks, defaultDate, onSubmit, onCancel }: TimeBlockFormProps) {
   const [title, setTitle] = useState(block?.title || "")
-  const [date, setDate] = useState(block?.date || defaultDate || new Date().toISOString().split("T")[0])
+  const [date, setDate] = useState(block?.date || defaultDate || todayColombia())
   const [startTime, setStartTime] = useState(block?.startTime || "09:00")
   const [endTime, setEndTime] = useState(block?.endTime || "10:00")
   const [type, setType] = useState<TimeBlock["type"]>(block?.type || "tarea")

@@ -4,6 +4,8 @@
 // Indicador de origen de la respuesta IA. No modifica ningún componente existente.
 // Uso: <AiSourceBadge source="gemini" cachedAt="2025-02-25T09:00:00Z" />
 
+import { formatBogotaTime, formatBogotaDateTime } from "@/lib/timezone"
+
 export type AiSource = "gemini" | "cache" | "fallback"
 
 interface AiSourceBadgeProps {
@@ -32,7 +34,7 @@ export function AiSourceBadge({ source, cachedAt, className }: AiSourceBadgeProp
 
   const formattedTime =
     source === "cache" && cachedAt
-      ? ` · ${new Date(cachedAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`
+      ? ` · ${formatBogotaTime(cachedAt)}`
       : ""
 
   return (
@@ -46,7 +48,7 @@ export function AiSourceBadge({ source, cachedAt, className }: AiSourceBadgeProp
         color: "var(--muted-foreground, #6b7280)",
         userSelect: "none",
       }}
-      title={source === "cache" && cachedAt ? `Cacheado el ${new Date(cachedAt).toLocaleString("es-ES")}` : undefined}
+      title={source === "cache" && cachedAt ? `Cacheado el ${formatBogotaDateTime(cachedAt)}` : undefined}
     >
       <span
         style={{

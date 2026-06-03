@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { TimeBlock } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { toBogotaDateStr } from "@/lib/timezone"
 
 interface WeeklyScheduleProps {
   startDate: Date
@@ -17,7 +18,7 @@ export function WeeklySchedule({ startDate, blocks }: WeeklyScheduleProps) {
   })
 
   const getBlocksForDay = (date: Date) => {
-    const dateStr = date.toISOString().split("T")[0]
+    const dateStr = toBogotaDateStr(date)
     return blocks.filter((b) => b.date === dateStr).sort((a, b) => a.startTime.localeCompare(b.startTime))
   }
 

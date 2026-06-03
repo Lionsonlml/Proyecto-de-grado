@@ -6,6 +6,7 @@ import { ensureDbReady } from "@/lib/db"
 import { buildCacheKey, getCached, setCached, logFallback } from "@/lib/ai-cache"
 import { callGeminiWithRetry, GeminiRetryError } from "@/lib/gemini-caller"
 import { FALLBACK_SCHEDULE } from "@/lib/ai-fallbacks"
+import { todayColombia } from "@/lib/timezone"
 
 // ─── Sistema: Coach de Planificación ─────────────────────────────────────────
 
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Token inválido" }, { status: 401 })
 
     const { date, force } = await request.json()
-    const targetDate = date || new Date().toISOString().split("T")[0]
+    const targetDate = date || todayColombia()
 
     const cacheKey = buildCacheKey("schedule", "optimize", targetDate)
 

@@ -10,6 +10,7 @@ import { CheckCircle2, Circle, Clock, Edit, Trash2, Play, Pause, Lightbulb, Time
 import { cn } from "@/lib/utils"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 import { PomodoroTimer } from "@/components/pomodoro-timer"
+import { formatDateOnly } from "@/lib/timezone"
 
 interface TaskListProps {
   tasks: Task[]
@@ -525,7 +526,7 @@ export function TaskList({ tasks, onEdit, onDelete, onStatusChange }: TaskListPr
 
                   {task.dueDate && (
                     <p className="text-sm text-muted-foreground">
-                      Vence: {new Date(task.dueDate).toLocaleDateString("es-ES")}
+                      Vence: {formatDateOnly(task.dueDate)}
                     </p>
                   )}
 

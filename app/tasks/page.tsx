@@ -8,6 +8,7 @@ import { TaskList } from "@/components/task-list"
 import type { Task } from "@/lib/types"
 import { Plus } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
+import { todayColombia } from "@/lib/timezone"
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -100,7 +101,7 @@ export default function TasksPage() {
             status: taskData.status || 'pendiente',
             duration: taskData.estimatedMinutes || 60,
             hour: taskData.hour || 9,
-            date: taskData.dueDate || new Date().toISOString().split('T')[0],
+            date: taskData.dueDate || todayColombia(),
             due_date: taskData.dueDate,
             tags: taskData.tags,
             recurrence: taskData.recurrence || 'none',

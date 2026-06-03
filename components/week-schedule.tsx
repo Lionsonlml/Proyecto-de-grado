@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { CheckCircle2, Trash2, Clock, Plus } from "lucide-react"
 import { format, addDays, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
+import { toBogotaDateStr, todayColombia } from "@/lib/timezone"
 
 interface WeekScheduleProps {
   referenceDate: Date
@@ -42,13 +43,13 @@ export function WeekSchedule({
 }: WeekScheduleProps) {
   const weekStart = startOfWeek(referenceDate, { weekStartsOn: 1 })
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  const todayStr = new Date().toISOString().split("T")[0]
+  const todayStr = todayColombia()
 
   // En móvil: día seleccionado en el panel inferior
-  const defaultIdx = days.findIndex((d) => d.toISOString().split("T")[0] === todayStr)
+  const defaultIdx = days.findIndex((d) => toBogotaDateStr(d) === todayStr)
   const [selectedIdx, setSelectedIdx] = useState(defaultIdx >= 0 ? defaultIdx : 0)
   const selectedDay = days[selectedIdx]
-  const selectedDayStr = selectedDay.toISOString().split("T")[0]
+  const selectedDayStr = toBogotaDateStr(selectedDay)
   const selectedBlocks = blocks
     .filter((b) => b.date === selectedDayStr)
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -60,7 +61,7 @@ export function WeekSchedule({
         {/* Tab strip horizontal */}
         <div className="flex overflow-x-auto gap-1 pb-2 scrollbar-none">
           {days.map((day, idx) => {
-            const dayStr = day.toISOString().split("T")[0]
+            const dayStr = toBogotaDateStr(day)
             const isToday = dayStr === todayStr
             const isSelected = idx === selectedIdx
             const dayBlocks = blocks.filter((b) => b.date === dayStr)
@@ -186,7 +187,7 @@ export function WeekSchedule({
       {/* ── DESKTOP (lg+): 7 columnas ───────────────────────────────────────── */}
       <div className="hidden lg:grid grid-cols-7 gap-1">
         {days.map((day, idx) => {
-          const dayStr = day.toISOString().split("T")[0]
+          const dayStr = toBogotaDateStr(day)
           const isToday = dayStr === todayStr
           const dayBlocks = blocks
             .filter((b) => b.date === dayStr)

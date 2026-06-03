@@ -16,6 +16,7 @@ import {
   Settings
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { todayColombia } from '@/lib/timezone'
 
 interface DataManagementProps {
   userId: number
@@ -46,7 +47,7 @@ export function DataManagement({ userId }: DataManagementProps) {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `timewize-data-${new Date().toISOString().split('T')[0]}.json`
+      a.download = `timewize-data-${todayColombia()}.json`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)

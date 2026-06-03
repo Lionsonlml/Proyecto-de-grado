@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Lightbulb, Loader2, Star, AlertCircle } from "lucide-react"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 import { AiInfoBanner } from "@/components/ai-info-banner"
+import { formatBogotaDate } from "@/lib/timezone"
 
 interface RecommendationsProps {
   onResponseGenerated?: (response: string) => void
@@ -90,7 +91,7 @@ export function Recommendations({ onResponseGenerated, initialResult, initialGen
         </Button>
         {generatedAt && !loading && (
           <p className="text-xs text-muted-foreground text-center">
-            Último análisis: {new Date(generatedAt).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+            Último análisis: {formatBogotaDate(generatedAt)}
           </p>
         )}
 

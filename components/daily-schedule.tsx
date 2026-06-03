@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import type { TimeBlock, Task } from "@/lib/types"
 import { Clock, Plus, Edit, Trash2, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toBogotaDateStr } from "@/lib/timezone"
 
 interface DailyScheduleProps {
   date: Date
@@ -29,7 +30,7 @@ export function DailySchedule({
   onToggleComplete,
   compact = false,
 }: DailyScheduleProps) {
-  const dateStr = date.toISOString().split("T")[0]
+  const dateStr = toBogotaDateStr(date)
   const dayBlocks = blocks.filter((b) => b.date === dateStr)
 
   const getBlocksForHour = (hour: number) => {

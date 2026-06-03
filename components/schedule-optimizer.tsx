@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar, Loader2 } from "lucide-react"
 import { AiSourceBadge, type AiSource } from "@/components/ai-source-badge"
 import { AiInfoBanner } from "@/components/ai-info-banner"
+import { formatBogotaDate } from "@/lib/timezone"
 
 interface ScheduleOptimizerProps {
   onResponseGenerated?: (response: string) => void
@@ -81,7 +82,7 @@ export function ScheduleOptimizer({ onResponseGenerated, initialResult, initialG
         </Button>
         {generatedAt && !loading && (
           <p className="text-xs text-muted-foreground text-center">
-            Último análisis: {new Date(generatedAt).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+            Último análisis: {formatBogotaDate(generatedAt)}
           </p>
         )}
 

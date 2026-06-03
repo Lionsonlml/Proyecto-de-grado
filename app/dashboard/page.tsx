@@ -12,6 +12,7 @@ import type { Task, Mood } from "@/lib/types"
 import { CheckCircle2, ListTodo, Clock, Calendar } from "lucide-react"
 import { AppLayout } from "@/components/app-layout"
 import { AiInfoBanner } from "@/components/ai-info-banner"
+import { todayColombia } from "@/lib/timezone"
 
 export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -124,7 +125,7 @@ export default function DashboardPage() {
   const pendingTasks = tasks.filter((t) => t.status === "pendiente" || t.status === "en-progreso").length
   const totalTasks = tasks.length
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = todayColombia()
   const overdueTasks = tasks.filter(
     (t) => t.status !== "completada" && t.status !== "cancelada" && t.dueDate && t.dueDate < today
   ).length

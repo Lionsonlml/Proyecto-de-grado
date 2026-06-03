@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import type { Task } from "@/lib/types"
 import { CheckCircle2, Circle, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { formatDateOnly } from "@/lib/timezone"
 
 interface RecentTasksProps {
   tasks: Task[]
@@ -72,7 +73,7 @@ export function RecentTasks({ tasks, onStatusChange }: RecentTasksProps) {
                     </Badge>
                     {task.dueDate && (
                       <span className="text-xs text-muted-foreground">
-                        Vence: {new Date(task.dueDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                        Vence: {formatDateOnly(task.dueDate, { day: "numeric", month: "short" })}
                       </span>
                     )}
                   </div>

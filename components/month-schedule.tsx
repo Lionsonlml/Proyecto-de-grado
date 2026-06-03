@@ -3,6 +3,7 @@
 import type { TimeBlock } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, format } from "date-fns"
+import { toBogotaDateStr, todayColombia } from "@/lib/timezone"
 
 interface MonthScheduleProps {
   month: Date
@@ -34,7 +35,7 @@ export function MonthSchedule({ month, blocks, onDayClick }: MonthScheduleProps)
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
   const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
   const days = eachDayOfInterval({ start: calStart, end: calEnd })
-  const todayStr = new Date().toISOString().split("T")[0]
+  const todayStr = todayColombia()
 
   return (
     <div>
@@ -51,7 +52,7 @@ export function MonthSchedule({ month, blocks, onDayClick }: MonthScheduleProps)
       {/* Grilla de días */}
       <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden border border-border">
         {days.map((day) => {
-          const dayStr = day.toISOString().split("T")[0]
+          const dayStr = toBogotaDateStr(day)
           const isCurrentMonth = day.getMonth() === month.getMonth()
           const isToday = dayStr === todayStr
           const dayBlocks = blocks
