@@ -30,7 +30,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { getCachedUser, clearAllCache, invalidateUserCache } from "@/lib/client-cache"
 import { formatBogotaDateTime } from "@/lib/timezone"
-import { AdminImpact } from "@/components/admin-impact"
+// import { AdminImpact } from "@/components/admin-impact" // OCULTO TEMPORALMENTE — reactivar descomentando esta línea y el render abajo
 
 interface AdminStats {
   users: {
@@ -487,8 +487,10 @@ export default function AdminPage() {
           </>
         ) : null}
 
-        {/* ── Impacto en usuarios (Productividad y Bienestar) ───── */}
+        {/* ── Impacto en usuarios (Productividad y Bienestar) — OCULTO TEMPORALMENTE ──
+             Para reactivar: descomentar el import de AdminImpact (arriba) y la línea siguiente.
         <AdminImpact />
+        ──────────────────────────────────────────────────────────────────────────── */}
 
         {/* ── Diagnóstico Gemini ────────────────────────────────── */}
         <section className="space-y-3">
